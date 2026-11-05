@@ -136,6 +136,8 @@ test('restart resumes several interrupted conversations independently without di
 test('WeCom passes separate idle and total budgets and keeps a wall deadline on older cores', async t => {
   for (const [modern, configured, idle, absolute] of [
     [true, {}, 900000, undefined],
+    [true, { idleTimeoutMs: 0 }, 0, undefined],
+    [false, { idleTimeoutMs: 0 }, undefined, 900000],
     [true, { idleTimeoutMs: 2500, maxTurnMs: 9000 }, 2500, 9000],
     [false, {}, undefined, 900000]
   ]) {

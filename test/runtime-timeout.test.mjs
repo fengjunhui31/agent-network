@@ -76,3 +76,11 @@ test('an unattributed adapter cancellation is not recorded as a user stop', asyn
   const r = await f.settled;
   assert.equal(r.cancellation.source, 'runtime_unspecified'); assert.deepEqual(f.notifications, []);
 });
+
+test('a local owner may disable idle cancellation without introducing the worker default deadline', async t => {
+  const f = prompt(t, { idle: 0 });
+  t.mock.timers.tick(86400000);
+  assert.deepEqual(f.notifications, []);
+  f.finish('end_turn');
+  assert.equal((await f.settled).stopReason, 'end_turn');
+});

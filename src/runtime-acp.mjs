@@ -121,7 +121,7 @@ export class AcpRuntime {
   async run(message, files = [], timeoutMs, idleTimeoutMs) {
     // Numeric timeoutMs keeps the existing absolute deadline for CLI and worker callers.
     const absoluteMs = timeoutMs ?? (idleTimeoutMs == null ? 300000 : undefined);
-    for (const duration of [absoluteMs, idleTimeoutMs]) {
+    for (const duration of [absoluteMs, idleTimeoutMs === 0 ? undefined : idleTimeoutMs]) {
       if (duration != null && (!Number.isSafeInteger(duration) || duration < 1 || duration > 2147483647)) {
         throw new Error('Execution timeout must be a positive timer duration in milliseconds');
       }
@@ -140,9 +140,9 @@ export class AcpRuntime {
       grace = setTimeout(() => this.stop(), 10000);
       return this.connection.agent.notify('session/cancel', { sessionId: this.sessionId }).catch(() => {});
     };
-    this.progressSeen = idleTimeoutMs == null ? null : new Map();
+    this.progressSeen = idleTimeoutMs > 0 ? new Map() : null;
     this.onProgress = () => {
-      if (idleTimeoutMs == null || cancellation) return;
+      if (!idleTimeoutMs || cancellation) return;
       lastProgressAt = new Date().toISOString();
       clearTimeout(idle);
       idle = setTimeout(() => { void this.cancelTurn('idle_timeout', idleTimeoutMs); }, idleTimeoutMs);

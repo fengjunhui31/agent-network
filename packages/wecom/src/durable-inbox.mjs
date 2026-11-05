@@ -66,12 +66,12 @@ export class DurableInbox {
 export class QueuedCoordinator {
   constructor(network, inbox, { deliver, started, failed, prepare, maxConcurrent = 4, idleTimeoutMs = 900000, maxTurnMs } = {}) {
     if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1) throw new Error('maxConcurrent must be a positive integer');
-    for (const duration of [idleTimeoutMs, maxTurnMs]) {
+    for (const duration of [idleTimeoutMs === 0 ? undefined : idleTimeoutMs, maxTurnMs]) {
       if (duration !== undefined && (!Number.isSafeInteger(duration) || duration < 1 || duration > 2147483647)) {
         throw new Error('Channel timeouts must be positive timer durations in milliseconds');
       }
     }
-    this.turnLimits = network.supportsIdleTimeout ? { idleTimeoutMs, timeoutMs: maxTurnMs } : { timeoutMs: maxTurnMs ?? idleTimeoutMs };
+    this.turnLimits = network.supportsIdleTimeout ? { idleTimeoutMs, timeoutMs: maxTurnMs } : { timeoutMs: maxTurnMs ?? (idleTimeoutMs || 900000) };
     Object.assign(this, { network, inbox, deliver, started, failed, prepare, maxConcurrent });
     this.stopping = false; this.running = null; this.active = new Map(); this.blocked = new Set();
     this.attachments = new Map(); this.injections = Promise.resolve();
