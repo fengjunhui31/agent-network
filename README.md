@@ -13,7 +13,7 @@ git clone https://github.com/fengjunhui31/agent-network.git
 cd agent-network
 npm ci
 npm run ci
-npm install -g "$PWD/dist/shiyanjia-agent-network-0.8.3.tgz"
+npm install -g "$PWD/dist/shiyanjia-agent-network-0.9.1.tgz"
 instance="$HOME/agent-network-instance"
 agent-network init "$instance"
 agent-network-release activate "$instance"
@@ -34,3 +34,7 @@ agent-network-release status "$instance"
 | 员工说明 | `skills/agent-network/` | 协调者和员工共用的操作规范，以及实例当时的能力快照。 |
 
 [架构](docs/ARCHITECTURE.md) · [版本与升级](docs/RELEASING.md) · [贡献指南](CONTRIBUTING.md)
+
+## 加入一台自己的机器
+
+已有 Agent 可以按本仓库说明安装核心，再拿到主网络私下提供的邀请文件。在新机器运行 `agent-network host "$HOME/team-machine" join --invite /私有目录/team.host-invite.json --consent`。机主确认盘点范围、主网络核对并批准后，协调者可查询运行时、CLI、选定项目的 Skill/MCP 和明确授权的动作。[受管机器操作手册](skills/agent-network/references/managed-hosts.md)

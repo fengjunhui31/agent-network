@@ -1,6 +1,6 @@
 {
   "name": "local-agent-network",
-  "version": "0.8.3",
+  "version": "0.9.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -23,7 +23,7 @@
     "check": "node tools/check-source.mjs",
     "pack:internal": "node tools/pack-internal.mjs",
     "verify:package": "node tools/verify-package.mjs",
-    "ci": "npm run check && npm test && npm ci --prefix packages/wecom --ignore-scripts --no-audit --no-fund && npm run test:wecom && npm run pack:core && npm run pack:wecom && npm run verify:package && npm ci --prefix packages/relay --ignore-scripts --no-audit --no-fund && npm run test:relay && npm run pack:relay && npm run verify:federation",
+    "ci": "npm run check && npm test && npm ci --prefix packages/wecom --ignore-scripts --no-audit --no-fund && npm run test:wecom && npm run pack:core && npm run pack:wecom && npm run verify:package && npm ci --prefix packages/relay --ignore-scripts --no-audit --no-fund && npm run test:relay && npm run pack:relay && npm run verify:federation && npm run verify:hosts",
     "channel": "node scripts/channel.mjs",
     "pack:wecom": "node tools/pack-wecom.mjs",
     "test:wecom": "npm --prefix packages/wecom test",
@@ -31,7 +31,8 @@
     "pack:relay": "node tools/pack-relay.mjs",
     "test:relay": "npm --prefix packages/relay test",
     "verify:federation": "node tools/verify-federation.mjs",
-    "pack:core": "node tools/pack-internal.mjs"
+    "pack:core": "node tools/pack-internal.mjs",
+    "verify:hosts": "node tools/verify-hosts.mjs"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "2.4.0",

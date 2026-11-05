@@ -98,6 +98,9 @@ export class AgentNetwork extends EventEmitter {
     // Reserve before any asynchronous operation so two callers cannot start the same session.
     this.busy.set(key, runId); this.runs.set(runId, run);
     this.gate.executions.add(runId);
+    if (timeoutMs == null && idleTimeoutMs == null && agent.id === this.members.coordinator())
+      idleTimeoutMs = this.catalog.config.coordinatorIdleTimeoutMs;
+    run.timeoutPolicy = { idleTimeoutMs: idleTimeoutMs ?? null, totalTimeoutMs: timeoutMs ?? (idleTimeoutMs == null ? 300000 : null) };
     run.settled = this.execute(agent, run, timeoutMs, idleTimeoutMs).finally(() => this.gate.executions.delete(runId));
     return { runId, agentId: agent.id, workspace: agent.workspace, status: 'running' };
   }
@@ -114,7 +117,7 @@ export class AgentNetwork extends EventEmitter {
       await this.catalog.refresh(); agent = this.catalog.get(agent.id);
       run.runtime = agent.runtime;
       const instructions = await this.catalog.prepare(agent);
-      const configured = { ...sessionAgent(agent, run.sessionKey), instanceRoot: this.root, canReply: Boolean(agent.manager && this.userReply) };
+      const configured = { ...sessionAgent(agent, run.sessionKey), instanceRoot: this.root, hostManager:Boolean(this.federation && agent.id===this.members.coordinator()), canReply: Boolean(agent.manager && this.userReply) };
       let runtime = this.runtimes.get(key);
       if (this.federation || !runtime || runtime.connection?.signal.aborted || JSON.stringify(runtime.agent) !== JSON.stringify(configured)) {
         runtime?.stop();

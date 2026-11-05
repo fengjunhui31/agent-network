@@ -1,6 +1,6 @@
 {
   "name": "@shiyanjia/agent-network-relay",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "Agent Network 的独立加密中转服务",

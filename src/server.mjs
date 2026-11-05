@@ -63,7 +63,7 @@ export async function startServer({ network, port = 0, saveEndpoint = true, hold
         client: resolve(existsSync(resolve(root,'current/scripts/member.mjs')) ? resolve(root,'current') : ROOT, 'scripts/member.mjs'), guide: joinGuide });
     }
     const self = req.url === '/members/self';
-    const owner = ['/maintenance','/members/owner','/nodes/owner','/channel/owner'].includes(req.url);
+    const owner = ['/maintenance','/members/owner','/nodes/owner','/channel/owner','/hosts/owner'].includes(req.url);
     const auth = Buffer.from(req.headers.authorization ?? '');
     const actor=network.runCredentials?.get(auth.toString().slice(7));
     const scoped=actor && auth.toString().startsWith('Bearer ') && network.activeRun(actor.agentId,actor.sessionKey)?.runId===actor.runId;
@@ -75,7 +75,7 @@ export async function startServer({ network, port = 0, saveEndpoint = true, hold
       for await (const chunk of req) { body += chunk; if (body.length > 1024 * 1024) throw new Error('Request too large'); }
       const params = JSON.parse(body || '{}');
       if(scoped){
-        if(!['/inbox','/delegate','/message','/reply','/result','/team','/nodes/manager','/members/manager'].includes(req.url))return reply(403,{error:'Not a runtime capability'});
+        if(!['/inbox','/delegate','/message','/reply','/result','/team','/nodes/manager','/members/manager','/hosts/manager'].includes(req.url))return reply(403,{error:'Not a runtime capability'});
         params.from=actor.agentId;params.fromSessionKey=actor.sessionKey;
         if(req.url==='/inbox'){params.agent=actor.agentId;params.sessionKey=actor.sessionKey;}
         if(req.url==='/delegate'){for(const name of ['originRunId','originMessageId','continuationOfRunId','resultRunIds','peerReturn','runOrigin'])delete params[name];}
@@ -97,6 +97,48 @@ export async function startServer({ network, port = 0, saveEndpoint = true, hold
               throw new Error('A membership decision requires a task from the bound owner');
           }
           value = nodeAction ? await network.peers.manage(params,run) : await directory(params); break;
+        }
+        case '/hosts/manager':
+        case '/hosts/owner': {
+          const manager=req.url==='/hosts/manager';
+          if(manager){
+            const run=network.activeRun(params.from,params.fromSessionKey);
+            if(!run || params.from!==network.members.coordinator() || network.peerSession(run) ||
+              !(network.gate.channel?.ownsRun(run) || (!run.parentRunId && (!run.from || run.from==='user'))))
+              throw new Error('Managed hosts require an active coordinator task from the local owner');
+          }
+          if(network.gate.phase!=='open' && !['status','list','detail'].includes(params.action))throw new Error('busy_draining');
+          const hosts=network.federation?.hosts;
+          if(!hosts)throw new Error('Enable federation on this instance before managing machines');
+          switch(params.action){
+            case 'list': value=await hosts.list(params.search);break;
+            case 'detail': {
+              value=await hosts.detail(params.alias);
+              if(manager&&value.snapshot){
+                const all=value.snapshot.capabilities.filter(c=>!params.search||c.name.toLowerCase().includes(String(params.search).toLowerCase()));
+                const offset=Math.max(0,Number.isSafeInteger(params.offset)?params.offset:0);
+                value.snapshot.capabilities=all.slice(offset,offset+100);value.matchCount=all.length;
+                value.nextOffset=offset+100<all.length?offset+100:null;
+              }break;
+            }
+            case 'self': value=await hosts.inspect();break;
+            case 'pending': value=await hosts.pending();break;
+            case 'approve': case 'revoke': value=await hosts.decide(params.id,params.action==='approve');break;
+            case 'invoke': value=await hosts.callHost(params.alias,params.operation,params.resource);break;
+            case 'status': value=await hosts.localStatus();break;
+            default: {
+              if(manager)throw new Error('Use the owner CLI for private invitations and local machine settings');
+              switch(params.action){
+                case 'invite': value=await hosts.issue(params.alias);break;
+                case 'join': value=await hosts.register(params.invitation,params.consent,params.policy);break;
+                case 'leave': value=await hosts.leave();break;
+                case 'inspect': value=await hosts.inspect();break;
+                case 'policy': value=await hosts.policy(params.policy);break;
+                case 'sync': hosts.rescan=true;hosts.wake();value={scheduled:true};break;
+                default: throw new Error('Unknown host operation');
+              }
+            }
+          }break;
         }
         case '/channel/owner':
           if(!network.gate.channel?.ownerRequest || params.action!=='request')throw new Error('Channel does not support owner requests');

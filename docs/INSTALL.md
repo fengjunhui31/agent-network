@@ -9,14 +9,14 @@ git clone https://github.com/fengjunhui31/agent-network.git
 cd agent-network
 npm ci
 npm run ci
-npm install -g "$PWD/dist/shiyanjia-agent-network-0.8.3.tgz"
+npm install -g "$PWD/dist/shiyanjia-agent-network-0.9.1.tgz"
 instance="$HOME/agent-network-instance"
 agent-network init "$instance"
 agent-network-release activate "$instance"
 agent-network-release status "$instance"
 ```
 
-`npm run ci` 会构建核心安装器、中转和企微三个本地 npm 包，并用一个临时实例验证安装。`init` 生成示例配置，已有实例沿用其配置。`activate` 从安装器中提取并核对应用，对指定实例进行切换。也可用 `node scripts/release.mjs activate "$instance" --archive dist/agent-network-0.8.3.tar.gz` 从源码检出激活应用。
+`npm run ci` 会构建核心安装器、中转和企微三个本地 npm 包，并用一个临时实例验证安装。`init` 生成示例配置，已有实例沿用其配置。`activate` 从安装器中提取并核对应用，对指定实例进行切换。也可用 `node scripts/release.mjs activate "$instance" --archive dist/agent-network-0.9.1.tar.gz` 从源码检出激活应用。
 
 开发调试时，可设置 `LAN_INSTANCE_ROOT` 为独立实例目录后运行 `npm start`。
 
@@ -67,7 +67,7 @@ agent-network-release status "$instance"
 
 ## 连接另一台机器上的主网络
 
-1. 中转管理员在源码仓库用 `npm install -g "$PWD/dist/shiyanjia-agent-network-relay-0.1.1.tgz"` 安装中转，在服务账号的 0700 目录中执行 `agent-network-relay init --config /私有目录/relay.json --listen /ip4/0.0.0.0/tcp/4001`，再以同一账号运行 `agent-network-relay serve --config /私有目录/relay.json`。通过可信渠道把实际地址和中转 Peer ID 给参与者。
+1. 中转管理员在源码仓库用 `npm install -g "$PWD/dist/shiyanjia-agent-network-relay-0.2.1.tgz"` 安装中转，在服务账号的 0700 目录中执行 `agent-network-relay init --config /私有目录/relay.json --listen /ip4/0.0.0.0/tcp/4001`，再以同一账号运行 `agent-network-relay serve --config /私有目录/relay.json`。通过可信渠道把实际地址和中转 Peer ID 给参与者。
 2. 各实例在自己的 `network.json` 加入下面的字段，把占位值换成真实地址和 Peer ID，然后重启服务。
 
 ```json
@@ -90,3 +90,5 @@ agent-network member "$INSTANCE_A" status --id node:studio
 查看 `status` 的 `route` 可以辨别实际选路。B 的维护者用 `member INSTANCE inbox --id node:ops` 查看收件，用 `reply --id node:ops --request-id 消息编号 --message 文字` 回传进度或结论。可在 `allowedTemplates` 指定本机非负责人模板，由本机网关处理纯文本。跨机只须网络向中转建立出站连接。已存在的旧版同机关系需双方先撤销或退出，再重新邀请。
 
 本机所有者可以委托已启用的企微机器人发一条消息，使用 `agent-network channel INSTANCE request GROUP_ID 唯一键 任务正文文件`。同一键只产生一次群任务，状态和企微回执在实例的渠道队列中查看。
+
+受管机器的邀请、一次批准、本机盘点、刷新、按能力查询与撤销，见[机器接入手册](../skills/agent-network/references/managed-hosts.md)。

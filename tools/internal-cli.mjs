@@ -11,12 +11,18 @@ const help = `${pkg.name} ${pkg.version}
   agent-network init INSTANCE
   agent-network activate|start|stop|status|rollback INSTANCE
   agent-network channel INSTANCE install NAME PACKAGE | disable | status | request GROUP_ID KEY MESSAGE_FILE
+  agent-network host INSTANCE inspect|invite|join|pending|approve|list|detail|refresh|invoke|status
   agent-network agent|member|runtimes INSTANCE [...arguments]
   agent-network-release --help
   agent-network --version`;
 async function createOnce(from, to) {
   try { await copyFile(from, to, constants.COPYFILE_EXCL); await chmod(to, 0o600); }
   catch (e) { if (e.code !== 'EEXIST') throw e; }
+}
+async function initialize(instance) {
+  await mkdir(join(instance, '.local'), { recursive:true, mode:0o700 });
+  await createOnce(join(root,'examples/network.example.json'),join(instance,'network.json'));
+  await createOnce(join(root,'examples/credentials.example.json'),join(instance,'.local/credentials.example.json'));
 }
 function execute(command, args, instance) {
   const result = spawnSync(command, args, { stdio: 'inherit', env: { ...process.env, LAN_INSTANCE_ROOT: instance } });
@@ -32,10 +38,7 @@ try {
     const instance = resolve(location);
     if (action === 'init') {
       if (args.length) throw new Error('init takes one instance directory');
-      await mkdir(join(instance, '.local'), { recursive: true, mode: 0o700 });
-      await createOnce(join(root, 'examples/network.example.json'), join(instance, 'network.json'));
-      for (const name of ['credentials.example.json'])
-        await createOnce(join(root, 'examples', name), join(instance, '.local', name));
+      await initialize(instance);
       console.log('Instance ready:', instance);
     } else if (action === 'channel') {
       execute(process.execPath,[join(root,'bootstrap/channel.mjs'),...args],instance);
@@ -43,7 +46,11 @@ try {
       if (args.length) throw new Error(action + ' takes one instance directory');
       execute(process.execPath, [join(root, 'bootstrap/release.mjs'), action, instance], instance);
     } else {
-      const entries = { agent:'src/cli.mjs', member:'scripts/member.mjs', runtimes:'scripts/runtimes.mjs' };
+      if(action==='host' && args[0]==='join'){
+        const {prepareHost}=await import(join(root,'bootstrap/host-bootstrap.mjs'));
+        await prepareHost(instance,args,initialize,join(root,'bootstrap/release.mjs'));
+      }
+      const entries = { host:'scripts/host.mjs',agent:'src/cli.mjs', member:'scripts/member.mjs', runtimes:'scripts/runtimes.mjs' };
       if (!Object.hasOwn(entries, action)) throw new Error('Unknown command. Use --help.');
       const script = join(instance, 'current', entries[action]);
       await access(script);

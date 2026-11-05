@@ -27,3 +27,6 @@ __pycache__/
 .env.*
 *.pem
 *.key
+*.host-invite.json
+managed-registrations.json
+sponsors/

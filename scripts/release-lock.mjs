@@ -3,8 +3,8 @@ import { join } from 'node:path';
 
 // Use the same kernel flock as older controllers. Keeping the pipe open holds the
 // lock for one operation; kernel cleanup and pipe EOF also work after SIGKILL.
-export async function withReleaseLock(instance, operation) {
-  const file = join(instance, '.local/release.lock');
+export async function withReleaseLock(instance, operation, lockFile = 'release.lock') {
+  const file = join(instance, '.local', lockFile);
   const holder = [process.execPath, '-e', 'process.stdout.write("locked\\n");process.stdin.resume()'];
   const bsd = ['darwin', 'freebsd', 'openbsd', 'netbsd', 'dragonfly'].includes(process.platform);
   const child = spawn(
