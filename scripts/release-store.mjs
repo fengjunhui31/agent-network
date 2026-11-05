@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
+  appendFile,
   copyFile,
   lstat,
   mkdir,
@@ -77,6 +78,10 @@ async function checkApplication(app, scratch, logfile, release) {
   const processInfo = await start(isolated, release, null);
   try {
     await waitReady(isolated, release, processInfo, null, 15000);
+  } catch (error) {
+    const log = await readFile(join(isolated, '.local/service.log'), 'utf8').catch(() => '');
+    if (log) await appendFile(logfile, '\nIsolated service output:\n' + log.slice(-8192) + '\n');
+    throw error;
   } finally {
     if ((await read(join(isolated, '.local/server.lock'), null))?.pid === processInfo.pid)
       await stop(isolated, processInfo.pid);

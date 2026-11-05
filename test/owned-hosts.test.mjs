@@ -2,14 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, writeFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { INSTANCE_ROOT } from '../src/paths.mjs';
 import { join } from 'node:path';
 import { inspectHost, invokeHost } from '../src/host-inventory.mjs';
 import { HostStore, SnapshotReceiver, digest, chunkSize } from '../src/host-store.mjs';
 import { codexReport } from '../src/codex-discovery.mjs';
 import { writeJson } from '../src/portable-io.mjs';
 async function folder(t) {
-  const root = await mkdtemp(join(tmpdir(), 'host-inspect-'));
+  // Release validation can run with a noexec system temp mount. Test commands live in the isolated instance.
+  const base = join(INSTANCE_ROOT, '.local', 'tests');
+  await mkdir(base, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(join(base, 'host-inspect-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   return root;
 }

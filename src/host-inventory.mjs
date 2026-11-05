@@ -121,7 +121,7 @@ async function commandVersion(name, file) {
       env: { HOME: homedir(), PATH: process.env.PATH ?? '', LANG: 'C', NO_COLOR: '1' }
     });
     return (
-      (stdout + ' ' + stderr).match(/\b\d+\.\d+(?:\.\d+)?(?:[-+][A-Za-z0-9.-]+)?\b/)?.[0]?.slice(0, 60) ??
+      (stdout + ' ' + stderr).match(/\bv?(\d+\.\d+(?:\.\d+)?(?:[-+][A-Za-z0-9.-]+)?)\b/i)?.[1]?.slice(0, 60) ??
       null
     );
   } catch {

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { alive } from '../scripts/release-service.mjs';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -47,3 +48,17 @@ test('release operations exclude a second controller and unlock after failure', 
   );
   assert.equal(await withReleaseLock(root, async () => 7), 7);
 });
+
+test(
+  'Linux can identify the live controller when ps is unavailable',
+  { skip: process.platform !== 'linux' },
+  () => {
+    const before = process.env.PATH;
+    process.env.PATH = '/nonexistent-agent-network-bin';
+    try {
+      assert.equal(alive(process.pid), true);
+    } finally {
+      process.env.PATH = before;
+    }
+  }
+);
