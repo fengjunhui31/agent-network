@@ -109,3 +109,7 @@ node scripts/member.mjs status --id node:studio
 ### 已批准的加密节点
 
 读当前快照的 `federation` 和 `networkNodes`。向已批准的 `node:别名` 发送明确、可公开的文字。使用已有的 `send_message`，核心选择同机直连或固定中转。接收成功表示对方已登记收件。发出带来源的请求后可主动结束本轮。进度通知进入原执行，晚到的文字由受限续办返回原会话。对端可能由所有者手动处理，也可配置无工具文本模板。遇到 `delivery_unknown` 先核对消息编号，避免重复派单。离线时告知用户，可以继续其他工作。跨网只传明确写出的文字，私聊历史、内部运行编号、凭据和文件留在本地。[安装与互联](../../docs/INSTALL.md#连接另一台机器上的主网络)
+
+### 自有机器
+
+在当前实例的 TEAM-CURRENT.json 查看 `managedHosts` 的简要记录。主协调者在本机所有者的任务中使用 `host_directory` 查机器、能力、最近盘点时间和指定动作。普通外部节点仍用 `node:` 联系。对新机器的批准和撤销应对应负责人的明确请求。[加入、授权和刷新](references/managed-hosts.md)

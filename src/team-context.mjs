@@ -16,7 +16,7 @@ export async function teamStatus(catalog, scope, manager = false) {
     models: catalog.config.models ?? {}, templates: catalog.config.templates,
     employees: catalog.list().agents.filter(agent => (agent.scope ?? null) === (scope ?? null)),
     runtimes: await readJson(resolve(LOCAL, 'runtime-state.json'), {}),
-    ...await memberSummary(catalog, scope, manager), networkNodes:[...await peerSummary(catalog.root,manager && !scope),...(manager && !scope && catalog.federation ? await catalog.federation.list():[])], federation:manager && !scope && catalog.federation?catalog.federation.transport.status():null, sourceFiles,
+    ...await memberSummary(catalog, scope, manager), managedHosts:manager && !scope && catalog.federation?.hosts?(await catalog.federation.hosts.list()).map(h=>({alias:h.alias,runtimes:h.runtimes.map(r=>r.id),observedAt:h.observedAt})):[], networkNodes:[...await peerSummary(catalog.root,manager && !scope),...(manager && !scope && catalog.federation ? await catalog.federation.list():[])], federation:manager && !scope && catalog.federation?catalog.federation.transport.status():null, sourceFiles,
     channel: catalog.channel?.id ?? null,
     features: [...(catalog.config.features ?? ['任务执行与工作区','专业员工并行协作','执行中消息注入','员工配置管理','运行时更新和回滚','网络应用排空升级与回滚','按项目查询成员报告','主网络单节点互联']), ...(catalog.channel?.features ?? []),...(catalog.federation?['同机加密直连','跨机加密中转','外部回复关联原会话']:[])] };
 }

@@ -10,6 +10,7 @@ import { circuitRelayServer } from '@libp2p/circuit-relay-v2';
 import { noise } from '@chainsafe/libp2p-noise';
 import { yamux } from '@chainsafe/libp2p-yamux';
 import { identity, validPeer } from './shared.mjs';
+import { Admissions, setSponsor } from './admissions.mjs';
 
 process.umask(0o077);
 const {
@@ -32,8 +33,8 @@ async function atomic(path, value) {
   await rename(tmp, path);
 }
 const admissionDir = join(dirname(file), 'admission');
-async function admitted() {
-  const entries = new Set((await read()).allow.map(validPeer));
+async function admitted(managed) {
+  const entries = new Set([...(await read()).allow.map(validPeer), ...managed.permanent()]);
   const names = await readdir(admissionDir).catch((e) => {
     if (e.code === 'ENOENT') return [];
     throw e;
@@ -46,7 +47,7 @@ async function admitted() {
   return entries;
 }
 const help =
-  'agent-network-relay init|identity|allow PEER_ID|remove PEER_ID|serve|status --config FILE\ninit optionally takes --listen /ip4/0.0.0.0/tcp/4001';
+  'agent-network-relay init|identity|allow PEER_ID|remove PEER_ID|sponsor PEER_ID|unsponsor PEER_ID|serve|status --config FILE\ninit optionally takes --listen /ip4/0.0.0.0/tcp/4001';
 async function main() {
   if (values.version) {
     console.log(JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8')).version);
@@ -82,13 +83,20 @@ async function main() {
     console.log(command, p);
     return;
   }
+  if (['sponsor', 'unsponsor'].includes(command)) {
+    await setSponsor(dirname(file), validPeer(args[0]), command === 'sponsor');
+    console.log(command, args[0]);
+    return;
+  }
   const statusFile = join(dirname(file), 'relay-status.json');
   if (command === 'status') {
     console.log(await readFile(statusFile, 'utf8'));
     return;
   }
   if (command !== 'serve') throw new Error(help);
-  let acl = await admitted(),
+  const managed = new Admissions(dirname(file));
+  await managed.start();
+  let acl = await admitted(managed),
     denied = 0;
   const deniedPeer = (p) => !acl.has(p.toString());
   const limit = (value, defaultValue, max) => {
@@ -111,7 +119,7 @@ async function main() {
       maxIncomingPendingConnections: 32
     },
     connectionGater: {
-      denyInboundEncryptedConnection: (p) => deniedPeer(p),
+      denyInboundEncryptedConnection: (p) => deniedPeer(p) && !managed.voucher(p.toString()),
       denyInboundRelayReservation: (p) => {
         const deny = deniedPeer(p);
         if (deny) denied++;
@@ -144,6 +152,7 @@ async function main() {
       })
     }
   });
+  await managed.attach(relay);
   await relay.start();
   let writes = Promise.resolve();
   function update(state) {
@@ -151,13 +160,15 @@ async function main() {
       .catch(() => {})
       .then(async () => {
         try {
-          acl = await admitted();
+          await managed.refresh();
+          acl = await admitted(managed);
         } catch (e) {
           acl = new Set();
+          managed.sponsors = new Set();
           console.error('Relay admission update failed; denying all peers');
         }
         for (const c of relay.getConnections())
-          if (deniedPeer(c.remotePeer))
+          if (deniedPeer(c.remotePeer) && !managed.voucher(c.remotePeer.toString()))
             await c
               .close({ signal: AbortSignal.timeout(1500) })
               .catch(() => c.abort(new Error('Relay admission revoked')));
@@ -169,7 +180,9 @@ async function main() {
           listen: config.listen,
           addresses: relay.getMultiaddrs().map((a) => a.toString()),
           updatedAt: new Date().toISOString(),
-          reservations: [...relay.services.relay.reservations.keys()].map((x) => x.toString()),
+          reservations: [...relay.services.relay.reservations.keys()]
+            .filter((x) => !deniedPeer(x) && relay.getConnections(x).length)
+            .map((x) => x.toString()),
           allowed: acl.size,
           denied,
           circuits: Object.fromEntries(established)

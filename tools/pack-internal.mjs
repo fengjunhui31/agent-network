@@ -39,6 +39,7 @@ export async function packInternal() {
     for(const name of ['release.mjs','release-controller.mjs','release-store.mjs','release-service.mjs','release-lock.mjs','release-archive.mjs'])
       await copyFile(join(ROOT,'scripts',name),join(temp,'bootstrap',name));
     await copyFile(join(ROOT,'scripts/channel.mjs'),join(temp,'bootstrap/channel.mjs'));
+    await copyFile(join(ROOT,'tools/host-bootstrap.mjs'),join(temp,'bootstrap/host-bootstrap.mjs'));
     for(const name of ['network.example.json','credentials.example.json'])
       await copyFile(join(ROOT,name),join(temp,'examples',name));
     for(const name of [archive,archive+'.sha256']) await copyFile(join(ROOT,'dist',name),join(temp,'release',name));

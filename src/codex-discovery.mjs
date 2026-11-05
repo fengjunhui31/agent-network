@@ -62,7 +62,7 @@ export async function projectScripts(project) {
   } catch (e) { return { tools:[], partial:e.code === 'ENOENT' ? [] : ['scripts-unavailable'] }; }
 }
 
-export async function codexReport(project, suppliedClient) {
+export async function codexReport(project, suppliedClient, { includeSessions = true } = {}) {
   const client = suppliedClient ?? new AppServer(project);
   try {
     if (!suppliedClient) await client.initialize();
@@ -73,7 +73,7 @@ export async function codexReport(project, suppliedClient) {
       if (tools.size >= 1200) { partial.add('tools-limited'); return; }
       tools.set(source + '/' + name, { name,source });
     }
-    for (const archived of [false,true]) {
+    for (const archived of (includeSessions ? [false,true] : [])) {
       const seen = new Set(); let cursor;
       do {
         const page = await client.call('thread/list', { cwd:project,archived,sourceKinds:sources,modelProviders:[],useStateDbOnly:true,

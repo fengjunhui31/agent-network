@@ -6,10 +6,12 @@ import { ROOT } from '../src/paths.mjs';
 const tracked = execFileSync('git',['ls-files','-z'],{cwd:ROOT,encoding:'utf8'}).split('\0').filter(Boolean);
 if (!tracked.includes('src/server.mjs')) throw new Error('Run the source check in the project Git checkout, after staging new files');
 const forbidden = /(^|\/)(?:\.local|\.git|current|releases|verification|dist|node_modules|__pycache__|\.env(?:\..*)?|\.npmrc|network\.json|credentials\.json|wecom\.json|relay(?:-identity|-status)?\.json|admission)(?:\/|$)|\.(?:key|pem|pyc|log)$/i;
+const machinePrivate = /(?:^|\/)(?:sponsors|managed-registrations\.json)(?:\/|$)|\.host-invite\.json$/;
 const patterns = [/-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----/, /\bnpm_[A-Za-z0-9]{30,}\b/, /\bgh[pousr]_[A-Za-z0-9]{30,}\b/, /\bsk-[A-Za-z0-9_-]{32,}\b/];
 for (const name of tracked) {
-  if(forbidden.test(name) || lstatSync(join(ROOT,name)).isSymbolicLink())throw new Error('Instance file or symlink in Git index: '+name);
+  if(machinePrivate.test(name) || forbidden.test(name) || lstatSync(join(ROOT,name)).isSymbolicLink())throw new Error('Instance file or symlink in Git index: '+name);
   const contents = execFileSync('git',['show',':'+name],{cwd:ROOT,maxBuffer:5*1024*1024});
+  if(name.endsWith('.json') && /"kind"\s*:\s*"owned-host"/.test(contents.toString('utf8')) && /"secret"\s*:/.test(contents.toString('utf8')))throw new Error('Private host invitation in index: '+name);
   if(patterns.some(p=>p.test(contents.toString('utf8'))))throw new Error('Credential-shaped value in Git index: '+name);
 }
 for (const folder of ['src','scripts','test','tools','packages/wecom/src','packages/wecom/test','packages/wecom/shared','packages/wecom/scripts','packages/relay','packages/relay/test']) for(const name of readdirSync(join(ROOT,folder)).filter(n=>n.endsWith('.mjs')))

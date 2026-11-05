@@ -13,13 +13,14 @@ try {
   delete pkg.scripts;
   pkg.repository = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8')).repository;
   Object.assign(pkg, {
-    files: ['cli.mjs', 'shared.mjs', 'README.md', 'CHANGELOG.md', 'npm-shrinkwrap.json'],
+    files: ['cli.mjs', 'shared.mjs', 'admissions.mjs', 'wire.mjs', 'README.md', 'CHANGELOG.md', 'npm-shrinkwrap.json'],
     bundleDependencies: Object.keys(pkg.dependencies),
     publishConfig: { registry, access: 'restricted' }
   });
   await writeFile(join(temp, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
-  for (const n of ['cli.mjs', 'README.md', 'CHANGELOG.md']) await copyFile(join(source, n), join(temp, n));
+  for (const n of ['cli.mjs', 'admissions.mjs', 'README.md', 'CHANGELOG.md']) await copyFile(join(source, n), join(temp, n));
   await copyFile(join(ROOT, 'src/federation-identity.mjs'), join(temp, 'shared.mjs'));
+  await copyFile(join(ROOT, 'src/host-wire.mjs'), join(temp, 'wire.mjs'));
   await copyFile(join(source, 'package-lock.json'), join(temp, 'npm-shrinkwrap.json'));
   for (const file of pkg.files) await chmod(join(temp, file), file === 'cli.mjs' ? 0o755 : 0o644);
   await chmod(join(temp, 'package.json'), 0o644);

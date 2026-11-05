@@ -24,7 +24,7 @@ export async function runtimeConfig(agent, endpoint, credentialsOverride) {
   for (const key of Object.keys(env)) {
     if (/^(ANTHROPIC_|CLAUDE_|DEEPSEEK_|DSH_|OPENAI_|LAN_)/.test(key)) delete env[key];
   }
-  Object.assign(env, { LAN_INSTANCE_ROOT: agent.instanceRoot ?? INSTANCE_ROOT, LAN_URL: endpoint.url, LAN_TOKEN: endpoint.token, LAN_AGENT_ID: agent.id, LAN_CAN_REPLY: (agent.canReply ?? agent.manager) ? '1' : '0', LAN_SESSION_KEY: agent.sessionKey ?? '' });
+  Object.assign(env, { LAN_INSTANCE_ROOT: agent.instanceRoot ?? INSTANCE_ROOT, LAN_URL: endpoint.url, LAN_TOKEN: endpoint.token, LAN_AGENT_ID: agent.id, LAN_CAN_REPLY: (agent.canReply ?? agent.manager) ? '1' : '0', LAN_HOST_MANAGER: agent.hostManager ? '1' : '0', LAN_SESSION_KEY: agent.sessionKey ?? '' });
   const endpointFile = resolve(agent.configDirectory, 'network-endpoint.json');
   await writeJson(endpointFile, { ...endpoint, agentId: agent.id, sessionKey: agent.sessionKey });
   env.LAN_ENDPOINT_FILE = endpointFile;
@@ -92,6 +92,6 @@ export async function runtimeConfig(agent, endpoint, credentialsOverride) {
     args = ['--profile', 'acp'];
   } else throw new Error(`Unsupported runtime: ${agent.runtime}`);
   const mcpServers = [{ name: 'local-network', command: process.execPath,
-    args: [resolve(ROOT, 'src/mcp.mjs')], env: ['LAN_URL', 'LAN_TOKEN', 'LAN_AGENT_ID', 'LAN_CAN_REPLY', 'LAN_SESSION_KEY'].map(name => ({ name, value: env[name] })) }];
+    args: [resolve(ROOT, 'src/mcp.mjs')], env: ['LAN_URL', 'LAN_TOKEN', 'LAN_AGENT_ID', 'LAN_CAN_REPLY', 'LAN_HOST_MANAGER', 'LAN_SESSION_KEY'].map(name => ({ name, value: env[name] })) }];
   return { bin, args, env, model, mcpServers, installation, secrets: [credentials.NEW_API_KEY, endpoint.token] };
 }

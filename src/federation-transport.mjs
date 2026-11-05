@@ -8,11 +8,11 @@ import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
 import { noise } from '@chainsafe/libp2p-noise';
 import { yamux } from '@chainsafe/libp2p-yamux';
 import { multiaddr } from '@multiformats/multiaddr';
+import { admissionRPC, encodeFrame as encode, readFrame as decode } from './host-wire.mjs';
 import { validPeer } from './federation-identity.mjs';
 
 export const protocol = '/shiyanjia/agent-network/1.0.0';
-const maxBody = 48 * 1024,
-  timeout = 8000;
+const timeout = 8000;
 const directory = '/tmp/agent-network-nodes-' + process.getuid();
 const localPath = (id) => {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))
@@ -27,26 +27,6 @@ function relayAddress(config) {
   if (!/^\/(ip4|ip6|dns4|dns6|dns)\/[^/]+\/tcp\/[1-9]\d*$/.test(addr.toString()))
     throw new Error('Relay address must be a TCP multiaddress without peer suffix');
   return addr.toString() + '/p2p/' + config.peerId;
-}
-function encode(value) {
-  const body = Buffer.from(JSON.stringify(value));
-  if (body.length > maxBody) throw fail('bad_frame', 'frame exceeds 48 KiB');
-  const prefix = Buffer.alloc(4);
-  prefix.writeUInt32BE(body.length);
-  return Buffer.concat([prefix, body]);
-}
-async function decode(stream) {
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of stream) {
-    size += chunk.byteLength;
-    if (size > maxBody + 4) throw fail('bad_frame', 'oversized stream');
-    chunks.push(Buffer.from(chunk.subarray()));
-  }
-  const bytes = Buffer.concat(chunks);
-  if (bytes.length < 4 || bytes.readUInt32BE(0) !== bytes.length - 4)
-    throw fail('bad_frame', 'invalid frame size');
-  return JSON.parse(bytes.subarray(4).toString('utf8'));
 }
 async function socketState(path) {
   const dir = await lstat(directory);
@@ -218,6 +198,11 @@ export class FederationTransport {
       this.pendingDials.set(addr, p);
     }
     return this.pendingDials.get(addr);
+  }
+  async relayAdmin(request) {
+    const c = await this.node.dial(multiaddr(this.base), {signal:AbortSignal.timeout(timeout)});
+    if (c.remotePeer.toString() !== this.relayPeer) throw new Error('Relay identity mismatch');
+    return admissionRPC(c, request);
   }
   async exchange(c, frame, application) {
     const bytes = encode(frame);

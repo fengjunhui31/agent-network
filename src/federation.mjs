@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { OwnedHosts } from './owned-hosts.mjs';
 import { identity, validPeer } from './federation-identity.mjs';
 import { FederationTransport } from './federation-transport.mjs';
 import { FederationStore, ReturnStore } from './federation-store.mjs';
@@ -70,6 +71,7 @@ export class Federation {
     const credentials = await identity(join(network.root, '.local/federation/identity.json'), networkId);
     const f = new Federation(network, credentials.card, config);
     await f.transport.start(credentials.key);
+    try { f.hosts=new OwnedHosts(f,credentials.key); await f.hosts.start(); } catch(error) { await f.close(); throw error; }
     return f;
   }
   constructor(network, card, config) {
@@ -184,12 +186,14 @@ export class Federation {
   async observe(l, status) {
     if (!['pending', 'approved', 'left', 'rejected', 'revoked'].includes(status))
       throw new Error('Invalid remote state');
-    return this.store.edit((s) => {
+    const result=await this.store.edit((s) => {
       const cur = matchLink(s.contacts, l.networkId, l.peerId, l.linkId);
       if (active(cur.status) && (!active(status) || (cur.direction === 'outgoing' && status === 'approved')))
         cur.status = status;
       return visible(cur);
     });
+    if(!active(result.status))await this.hosts?.linkClosed(l);
+    return result;
   }
   async receive(key, f, route) {
     id.parse(f.from);
@@ -199,8 +203,9 @@ export class Federation {
     const l = matchLink((await this.store.read()).contacts, f.from, key, f.linkId);
     if (f.action === 'status')
       return { status: l.status, direction: l.direction, offeredId: l.remoteAlias, returnAlias: l.id };
-    if (!['notice', 'message'].includes(f.action)) throw new Error('Unknown federation action');
-    if (f.action === 'message' && !active(l.status)) throw new Error('Contact revoked or closed');
+    const hostAction = ['host.part', 'host.invoke'].includes(f.action);
+    if (!hostAction && !['notice', 'message'].includes(f.action)) throw new Error('Unknown federation action');
+    if ((hostAction || f.action === 'message') && !active(l.status)) throw new Error('Contact revoked or closed');
     const remote = await this.call(l, 'status');
     if (f.action === 'notice') return { status: (await this.observe(l, remote.status)).status };
     const current = matchLink((await this.store.read()).contacts, f.from, key, f.linkId);
@@ -211,6 +216,10 @@ export class Federation {
       (current.direction === 'incoming' ? current.status : remote.status) !== 'approved'
     )
       throw new Error('Contact is not approved');
+    if (hostAction) {
+      if (this.network.gate.phase !== 'open') throw new Error('busy_draining');
+      return this.hosts.receive(current,f);
+    }
     const msg = msgSpec.parse(f.data);
     const event = {
       ...msg,
@@ -313,6 +322,7 @@ export class Federation {
       c.status = status;
       return c;
     });
+    if(!active(cur.status))await this.hosts?.linkClosed(cur);
     let notified = true;
     try {
       await this.call(cur, 'notice');
@@ -558,6 +568,7 @@ export class Federation {
     this.closing = true;
     this.network.off('settled', this.onSettled);
     await Promise.allSettled([...this.work, ...this.routing.values()]);
+    await this.hosts?.close();
     await this.transport.close();
     await this.store.writes;
     await this.returns.writes;
