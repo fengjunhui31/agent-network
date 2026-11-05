@@ -51,6 +51,8 @@ description: 本机 Agent 网络的协作说明。协调者和专业员工在申
 
 ## 个人助手
 
+[总控人设模板](references/coordinator-persona.md)约定名字、定位、协作分工、对外边界和说话方式。机主修订时只改本机实例的总控人设，从下轮生效。
+
 主要协调者在工作区和每轮输入中获得[个人助手工作模板](references/personal-assistant.md)。用户明确要求换运行时或模型时使用 `assistant_settings`，从下一轮生效。操作示例与重启方法见[协调者手册](references/coordinator.md#个人助手与自己的运行时)。
 
 回答本身就是交付。只有确实要给对方某个文件时，才在最终回答中点名工作区内该文件的完整路径。普通对话直接回复文字。

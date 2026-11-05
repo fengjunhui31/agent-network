@@ -4,6 +4,8 @@
 
 主要协调者共用[个人助手工作模板](../skills/agent-network/references/personal-assistant.md)，人设、工作区、运行时和模型单独配置。用户可以在与负责人的对话中直接请求切运行时或模型，[设置和重启方法](../skills/agent-network/references/coordinator.md#个人助手与自己的运行时)。
 
+机主可在本机指定[总控人设](../skills/agent-network/references/coordinator-persona.md)，使用 `agent-network agent "$INSTANCE" persona --file /私有目录/人设.json` 应用，使用相同命令省略 `--file` 回读。
+
 ## 安装
 
 ```sh
@@ -11,7 +13,7 @@ git clone https://github.com/fengjunhui31/agent-network.git
 cd agent-network
 npm ci
 npm run ci
-npm install -g "$PWD/dist/shiyanjia-agent-network-0.9.5.tgz"
+npm install -g "$PWD/dist/shiyanjia-agent-network-0.9.7.tgz"
 instance="$HOME/agent-network-instance"
 agent-network init "$instance"
 agent-network-release activate "$instance"

@@ -2,7 +2,7 @@
 
 ## 个人助手与自己的运行时
 
-主要协调者使用[个人助手工作模板](personal-assistant.md)。机主给出的名字、性格与职责继续来自员工配置。日常交谈直接回答；想确认运行状态或维护网络时才查操作手册。`workProfile` 可在模板或单个员工设置为 `personal-assistant`；设为 `null` 可以关闭这份工作模板。既有网络的主要协调者默认获得它。
+主要协调者使用[个人助手工作模板](personal-assistant.md)。使用[总控人设](coordinator-persona.md)时，每轮从本机实例读取机主确认的身份。此前的实例沿用员工配置，直到机主首次配置独立人设。日常交谈直接回答；想确认运行状态或维护网络时才查操作手册。`workProfile` 可在模板或单个员工设置为 `personal-assistant`；设为 `null` 可以关闭这份工作模板。既有网络的主要协调者默认获得它。
 
 - 用户问你现在用什么，调用 `assistant_settings` 的 `status`。`running` 是当前这一轮，`configured` 是下次启动采用的设置。
 - 用 `models` 和运行时名称查可选项。Codex 查询本机 App Server 的模型目录；所选账号能否实际运行该模型，以成功完成一轮为准。网关运行时使用实例配置的模型，机主可以给模型声明 `runtimes` 范围。

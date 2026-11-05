@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { ROOT, INSTANCE_ROOT, readJson, writeJson, safeId } from './paths.mjs';
 import { assertRuntime } from './runtimes.mjs';
+import { readPersona, updatePersona, personaInstructions } from './coordinator-persona.mjs';
 
 export class Catalog {
   constructor(config, root = INSTANCE_ROOT) {
@@ -21,14 +22,39 @@ export class Catalog {
         catalog.instances.set(id, { ...old, ...spec, id, workspace, configDirectory: old.configDirectory, persistent: true });
       }
     }
+    await catalog.reloadPersona();
     return catalog;
   }
   list() {
-    return { agents: [...this.instances.values()], templates: this.config.templates };
+    return { agents: [...this.instances.keys()].map(id => this.get(id)), templates: this.config.templates };
   }
-  get(id) { return this.instances.get(id); }
+  get(id) {
+    const agent = this.instances.get(id);
+    if (!agent || this.primaryPersona?.id !== id) return agent;
+    const { name, role } = this.primaryPersona.profile;
+    const overrides = { ...agent.overrides };
+    if (Object.hasOwn(overrides, 'name')) overrides.name = name;
+    if (Object.hasOwn(overrides, 'instructions')) overrides.instructions = role;
+    return { ...agent, name, instructions: role, overrides };
+  }
+  async reloadPersona() {
+    const id = this.coordinatorId(this.channel?.coordinatorId);
+    const profile = id ? await readPersona(this.root, id) : null;
+    this.primaryPersona = profile ? { id, profile } : null;
+  }
+  updateCoordinatorPersona(id, fields) {
+    this.pendingUpdate = this.pendingUpdate.catch(() => {}).then(async () => {
+      await this.refresh();
+      if (id !== this.coordinatorId(this.channel?.coordinatorId)) throw new Error('Choose the primary coordinator');
+      const profile = await updatePersona(this.root, id, fields);
+      this.primaryPersona = { id, profile };
+      await this.save();
+      return profile;
+    });
+    return this.pendingUpdate;
+  }
   coordinatorId(channelId) {
-    const managers = Object.keys(this.config.agents).filter(id => this.get(id)?.manager);
+    const managers = Object.keys(this.config.agents).filter(id => this.instances.get(id)?.manager);
     const preferred = channelId ?? this.config.coordinatorId;
     if (managers.includes(preferred)) return preferred;
     // Preserve the conventional ID on older instances that omitted coordinatorId.
@@ -44,10 +70,11 @@ export class Catalog {
       const spec = this.spec(overrides.template ?? old.template, overrides);
       this.instances.set(id, { ...old, ...spec, workspace: old.workspace, configDirectory: old.configDirectory });
     }
+    await this.reloadPersona();
   }
   async save() {
     this.pendingSave = this.pendingSave.catch(() => {}).then(() =>
-      writeJson(resolve(this.root, '.local', 'agents.json'), Object.fromEntries(this.instances)));
+      writeJson(resolve(this.root, '.local', 'agents.json'), Object.fromEntries([...this.instances.keys()].map(id => [id, this.get(id)]))));
     await this.pendingSave;
   }
   update(id, patch, newModel) {
@@ -55,6 +82,8 @@ export class Catalog {
       await this.refresh();
       const old = this.get(id);
       if (!old) throw new Error('Unknown employee');
+      if (this.primaryPersona?.id === id && (Object.hasOwn(patch, 'name') || Object.hasOwn(patch, 'instructions')))
+        throw new Error('Use coordinator persona settings to change this identity');
       if (patch.runtime) assertRuntime(patch.runtime);
       if (patch.model && this.config.models && !Object.hasOwn(this.config.models, patch.model) && !newModel)
         throw new Error('Unknown model');
@@ -97,15 +126,20 @@ export class Catalog {
     return pending;
   }
   async prepareFiles(agent) {
+    const primary = agent.id === this.coordinatorId(this.channel?.coordinatorId);
+    if (primary) {
+      await this.reloadPersona();
+      agent = this.get(agent.id);
+    }
+    const identity = primary && this.primaryPersona ? personaInstructions(this.primaryPersona.profile) : agent.instructions;
     const owned = agent.workspace === resolve(this.root, this.config.workspaceRoot, agent.id);
     const directory = owned ? agent.workspace : agent.configDirectory;
     const team = await (await import('./team-context.mjs')).writeTeamContext(this, agent, directory);
-    const primary = agent.id === this.coordinatorId(this.channel?.coordinatorId);
     const profile = agent.workProfile === undefined && primary ? 'personal-assistant' : agent.workProfile;
     const workStyle = profile === 'personal-assistant'
       ? await readFile(resolve(ROOT, 'skills/agent-network/references/personal-assistant.md'), 'utf8') : '';
     const text = [
-      `# ${agent.name ?? agent.id}`, agent.instructions, agent.extraInstructions, workStyle,
+      `# ${agent.name ?? agent.id}`, identity, agent.extraInstructions, workStyle,
       `工作目录：${agent.workspace}`, `能力：${agent.capabilities.join('、')}`,
       team,
       agent.manager
