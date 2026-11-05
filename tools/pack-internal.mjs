@@ -5,7 +5,8 @@ import { join, resolve } from 'node:path';
 import { ROOT } from '../src/paths.mjs';
 import { build } from '../scripts/release-archive.mjs';
 
-export const registry = process.env.npm_config_registry || 'https://registry.npmjs.org/';
+// A distributable archive must not record a developer's npm mirror URL.
+export const registry = 'https://registry.npmjs.org/';
 export const packageName = '@shiyanjia/agent-network';
 function run(command,args,cwd) {
   const result = spawnSync(command,args,{cwd,encoding:'utf8',env:{...process.env,npm_config_audit:'false'}});
