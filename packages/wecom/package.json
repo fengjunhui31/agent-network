@@ -1,0 +1,28 @@
+{
+  "name": "@shiyanjia/agent-network-wecom",
+  "version": "0.7.1",
+  "private": true,
+  "type": "module",
+  "description": "Agent Network 的可选企业微信渠道",
+  "main": "src/wecom.mjs",
+  "license": "UNLICENSED",
+  "agentNetworkChannel": {
+    "id": "wecom",
+    "apiVersion": 1,
+    "exampleConfig": "wecom.example.json"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "verify:queue": "node scripts/verify-queue.mjs",
+    "verify:replies": "node scripts/verify-replies.mjs",
+    "verify:concurrency": "node scripts/verify-concurrency.mjs",
+    "verify:memory": "node scripts/verify-shared-memory.mjs",
+    "verify:completion": "node scripts/verify-completion.mjs"
+  },
+  "dependencies": {
+    "@wecom/aibot-node-sdk": "1.0.7"
+  }
+}

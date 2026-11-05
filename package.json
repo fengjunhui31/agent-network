@@ -1,0 +1,58 @@
+{
+  "name": "local-agent-network",
+  "version": "0.8.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node src/cli.mjs serve",
+    "service": "node scripts/service.mjs",
+    "agent": "node src/cli.mjs",
+    "test": "node --test test/*.test.mjs",
+    "runtimes": "node scripts/runtimes.mjs",
+    "gateway": "node scripts/check-gateway.mjs",
+    "verify:native": "node scripts/verify-native.mjs",
+    "verify:live": "node scripts/verify-live.mjs",
+    "verify:models": "node scripts/verify-models.mjs",
+    "build": "node scripts/release-archive.mjs",
+    "verify:guide": "node scripts/verify-guide.mjs",
+    "release": "node scripts/release.mjs",
+    "member": "node scripts/member.mjs",
+    "check": "node tools/check-source.mjs",
+    "pack:internal": "node tools/pack-internal.mjs",
+    "verify:package": "node tools/verify-package.mjs",
+    "ci": "npm run check && npm test && npm ci --prefix packages/wecom --ignore-scripts --no-audit --no-fund && npm run test:wecom && npm run pack:core && npm run pack:wecom && npm run verify:package && npm ci --prefix packages/relay --ignore-scripts --no-audit --no-fund && npm run test:relay && npm run pack:relay && npm run verify:federation",
+    "channel": "node scripts/channel.mjs",
+    "pack:wecom": "node tools/pack-wecom.mjs",
+    "test:wecom": "npm --prefix packages/wecom test",
+    "verify:release": "node tools/verify-release-cli.mjs",
+    "pack:relay": "node tools/pack-relay.mjs",
+    "test:relay": "npm --prefix packages/relay test",
+    "verify:federation": "node tools/verify-federation.mjs",
+    "pack:core": "node tools/pack-internal.mjs"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "2.4.0",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "tar-stream": "3.2.2",
+    "zod": "3.25.76",
+    "@chainsafe/libp2p-noise": "17.0.0",
+    "@chainsafe/libp2p-yamux": "8.0.1",
+    "@libp2p/circuit-relay-v2": "4.2.17",
+    "@libp2p/crypto": "5.2.0",
+    "@libp2p/identify": "4.1.18",
+    "@libp2p/tcp": "11.0.32",
+    "@multiformats/multiaddr": "13.0.3",
+    "libp2p": "3.5.1",
+    "@libp2p/peer-id": "6.0.18"
+  },
+  "description": "事件驱动的 Agent 协作网络，支持本机通信和加密中转",
+  "homepage": "https://github.com/fengjunhui31/agent-network",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fengjunhui31/agent-network.git"
+  },
+  "license": "UNLICENSED"
+}

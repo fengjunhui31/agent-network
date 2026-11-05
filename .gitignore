@@ -1,0 +1,29 @@
+# Instance configuration, identities, chat records and workspaces
+.local/
+network.json
+credentials.json
+wecom.json
+relay.json
+relay-identity.json
+relay-status.json
+admission/
+verification/
+current
+releases/
+
+# Build and package outputs
+dist/
+node_modules/
+*.tgz
+*.tar.gz
+__pycache__/
+*.py[cod]
+*.log
+.DS_Store
+
+# Private configuration, keys and local scratch files
+.npmrc
+.env
+.env.*
+*.pem
+*.key

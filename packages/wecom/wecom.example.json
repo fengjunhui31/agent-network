@@ -1,0 +1,7 @@
+{
+  "botId": "YOUR-WECOM-BOT-ID",
+  "secret": "YOUR-WECOM-BOT-SECRET",
+  "allowedUserIds": [],
+  "enabledGroupIds": [],
+  "maxConcurrentConversations": 4
+}
