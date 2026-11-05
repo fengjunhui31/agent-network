@@ -54,6 +54,26 @@ class AppServer {
   }
 }
 
+export async function codexModels(cwd, suppliedClient) {
+  const client = suppliedClient ?? new AppServer(cwd);
+  try {
+    if (!suppliedClient) await client.initialize();
+    const models = new Set(), cursors = new Set();
+    let cursor;
+    do {
+      const page = await client.call('model/list', { limit: 100, ...(cursor ? { cursor } : {}) });
+      for (const row of page.data) {
+        const name = row.model || row.id;
+        if (!row.hidden && typeof name === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/.test(name)) models.add(name);
+      }
+      cursor = page.nextCursor;
+      if (cursor && cursors.has(cursor)) throw new Error('Invalid model catalog pagination');
+      cursors.add(cursor);
+    } while (cursor);
+    return [...models];
+  } finally { if (!suppliedClient) client.close(); }
+}
+
 export async function projectScripts(project) {
   try {
     const manifest = JSON.parse(await readFile(resolve(project,'package.json'),'utf8'));

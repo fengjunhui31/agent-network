@@ -2,7 +2,9 @@
 
 Agent Network 连接独立运行的 AI 团队。每个实例有自己的协调者、员工模板、运行时和工作区。协调者可以自己接单，也可以把工作分给专业员工，先同步进度，稍后在发起会话交付结果。
 
-核心通过 ACP 驱动 Claude Code 和 DSH，通过 MCP 提供派工、发送消息和获取结果的工具。Codex 可上报经用户选择的项目、会话用途与工具名称。企业微信入口和跨机器中转都可以单独安装。
+核心通过 ACP 驱动 Claude Code、DSH 和 Codex，通过 MCP 提供派工、发送消息和获取结果的工具。Codex 可上报经用户选择的项目、会话用途与工具名称。企业微信入口和跨机器中转都可以单独安装。
+
+主要协调者可以使用[个人助手工作模板](skills/agent-network/references/personal-assistant.md)。同一个员工可以换运行时与模型，继续使用自己的工作区、人设和共享记忆。
 
 ## 从源码开始
 
@@ -13,7 +15,7 @@ git clone https://github.com/fengjunhui31/agent-network.git
 cd agent-network
 npm ci
 npm run ci
-npm install -g "$PWD/dist/shiyanjia-agent-network-0.9.3.tgz"
+npm install -g "$PWD/dist/shiyanjia-agent-network-0.9.5.tgz"
 instance="$HOME/agent-network-instance"
 agent-network init "$instance"
 agent-network-release activate "$instance"

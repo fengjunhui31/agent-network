@@ -1,10 +1,11 @@
 import { resolve } from 'node:path';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { INSTANCE_ROOT, readJson, writeJson, safeId } from './paths.mjs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { ROOT, INSTANCE_ROOT, readJson, writeJson, safeId } from './paths.mjs';
+import { assertRuntime } from './runtimes.mjs';
 
 export class Catalog {
   constructor(config, root = INSTANCE_ROOT) {
-    this.config = config; this.root = root; this.instances = new Map(); this.pendingSave = Promise.resolve(); this.preparations = new Map();
+    this.config = config; this.root = root; this.instances = new Map(); this.pendingSave = Promise.resolve(); this.pendingUpdate = Promise.resolve(); this.preparations = new Map();
   }
   static async load(root = INSTANCE_ROOT) {
     const catalog = new Catalog(await readJson(resolve(root, 'network.json')), root);
@@ -49,19 +50,27 @@ export class Catalog {
       writeJson(resolve(this.root, '.local', 'agents.json'), Object.fromEntries(this.instances)));
     await this.pendingSave;
   }
-  async update(id, patch) {
-    const old = this.get(id);
-    if (!old) throw new Error('Unknown employee');
-    if (patch.model && this.config.models && !this.config.models[patch.model]) throw new Error('Unknown model');
-    if (patch.runtime && !['claude', 'dsh'].includes(patch.runtime)) throw new Error('Unknown runtime');
-    const overrides = { ...old.overrides, ...patch };
-    const updated = { ...old, ...patch, overrides };
-    this.instances.set(id, updated);
-    if (this.config.agents[id]) {
-      this.config.agents[id] = { ...this.config.agents[id], ...patch };
-      await writeJson(resolve(this.root, 'network.json'), this.config);
-    }
-    await this.save(); return updated;
+  update(id, patch, newModel) {
+    this.pendingUpdate = this.pendingUpdate.catch(() => {}).then(async () => {
+      await this.refresh();
+      const old = this.get(id);
+      if (!old) throw new Error('Unknown employee');
+      if (patch.runtime) assertRuntime(patch.runtime);
+      if (patch.model && this.config.models && !Object.hasOwn(this.config.models, patch.model) && !newModel)
+        throw new Error('Unknown model');
+      const overrides = { ...old.overrides, ...patch };
+      const updated = { ...old, ...patch, overrides };
+      if (this.config.agents[id]) {
+        const next = { ...this.config, agents: { ...this.config.agents, [id]: { ...this.config.agents[id], ...patch } } };
+        if (newModel) next.models = { ...this.config.models, [patch.model]: newModel };
+        await writeJson(resolve(this.root, 'network.json'), next);
+        this.config = next;
+      }
+      this.instances.set(id, updated);
+      await this.save();
+      return updated;
+    });
+    return this.pendingUpdate;
   }
   spec(template, overrides = {}) {
     if (!this.config.templates[template]) throw new Error(`Unknown template: ${template}`);
@@ -88,17 +97,23 @@ export class Catalog {
     return pending;
   }
   async prepareFiles(agent) {
-    const team = await (await import('./team-context.mjs')).writeTeamContext(this, agent);
+    const owned = agent.workspace === resolve(this.root, this.config.workspaceRoot, agent.id);
+    const directory = owned ? agent.workspace : agent.configDirectory;
+    const team = await (await import('./team-context.mjs')).writeTeamContext(this, agent, directory);
+    const primary = agent.id === this.coordinatorId(this.channel?.coordinatorId);
+    const profile = agent.workProfile === undefined && primary ? 'personal-assistant' : agent.workProfile;
+    const workStyle = profile === 'personal-assistant'
+      ? await readFile(resolve(ROOT, 'skills/agent-network/references/personal-assistant.md'), 'utf8') : '';
     const text = [
-      `# ${agent.name ?? agent.id}`, agent.instructions, agent.extraInstructions,
+      `# ${agent.name ?? agent.id}`, agent.instructions, agent.extraInstructions, workStyle,
       `工作目录：${agent.workspace}`, `能力：${agent.capabilities.join('、')}`,
       team,
       agent.manager
         ? `使用自己的工作目录与收到的共享输入。已绑定负责人要求维护本实例 ${this.root} 时，按网络规范准备候选版本。`
         : '使用自己的工作目录、收到的共享输入和本轮列出的只读网络说明。',
     ].join('\n\n');
-    await writeFile(resolve(agent.workspace, 'AGENTS.md'), text);
-    await writeFile(resolve(agent.workspace, 'CLAUDE.md'), text);
+    await writeFile(resolve(directory, 'AGENTS.md'), text);
+    await writeFile(resolve(directory, 'CLAUDE.md'), text);
     return text;
   }
 }

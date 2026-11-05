@@ -1,22 +1,26 @@
 import { resolve, join } from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { ROOT, INSTANCE_ROOT, LOCAL, readJson, writeJson, privateEnvironment } from './paths.mjs';
+import { ROOT, INSTANCE_ROOT, readJson, writeJson, privateEnvironment } from './paths.mjs';
+import { codexHome } from './runtime-codex.mjs';
 
-export async function runtimeInstallation(name) {
+export async function runtimeInstallation(name, instanceRoot = INSTANCE_ROOT) {
+  const local = resolve(instanceRoot, '.local');
   const versions = await readJson(resolve(ROOT, 'runtime-versions.json'));
-  const state = await readJson(process.env.LAN_RUNTIME_STATE_FILE ?? resolve(LOCAL, 'runtime-state.json'), {});
+  const state = await readJson(process.env.LAN_RUNTIME_STATE_FILE ?? resolve(local, 'runtime-state.json'), {});
   const slot = state[name]?.active ?? 'initial';
-  const directory = resolve(LOCAL, 'runtimes', name, slot);
+  const directory = resolve(local, 'runtimes', name, slot);
   return { directory, slot, ...versions[name], ...(state[name]?.spec ?? {}) };
 }
 
 export async function runtimeConfig(agent, endpoint, credentialsOverride) {
   const credentials = credentialsOverride ?? await privateEnvironment();
-  const installation = await runtimeInstallation(agent.runtime);
+  const installation = await runtimeInstallation(agent.runtime, agent.instanceRoot);
   const model = agent.model ?? credentials[agent.modelEnv];
   const requestHeaders = Object.fromEntries(Object.entries(agent.requestHeaders ?? {}).map(([name, value]) => [name, String(value).replaceAll('{agentId}', agent.id)]));
   new Headers(requestHeaders); // Reject invalid header names or values before starting a runtime.
-  if (!model || !credentials.NEW_API_KEY || !credentials.NEW_API_URL) {
+  // Codex reaches its model through the user's ChatGPT login, not the shared gateway.
+  const usesGateway = agent.runtime !== 'codex';
+  if (!model || (usesGateway && (!credentials.NEW_API_KEY || !credentials.NEW_API_URL))) {
     throw new Error(`Configure NEW_API_URL, NEW_API_KEY and ${agent.modelEnv} in .local/credentials.json`);
   }
   const env = { ...process.env };
@@ -24,7 +28,7 @@ export async function runtimeConfig(agent, endpoint, credentialsOverride) {
   for (const key of Object.keys(env)) {
     if (/^(ANTHROPIC_|CLAUDE_|DEEPSEEK_|DSH_|OPENAI_|LAN_)/.test(key)) delete env[key];
   }
-  Object.assign(env, { LAN_INSTANCE_ROOT: agent.instanceRoot ?? INSTANCE_ROOT, LAN_URL: endpoint.url, LAN_TOKEN: endpoint.token, LAN_AGENT_ID: agent.id, LAN_CAN_REPLY: (agent.canReply ?? agent.manager) ? '1' : '0', LAN_HOST_MANAGER: agent.hostManager ? '1' : '0', LAN_SESSION_KEY: agent.sessionKey ?? '' });
+  Object.assign(env, { LAN_INSTANCE_ROOT: agent.instanceRoot ?? INSTANCE_ROOT, LAN_URL: endpoint.url, LAN_TOKEN: endpoint.token, LAN_AGENT_ID: agent.id, LAN_CAN_REPLY: (agent.canReply ?? agent.manager) ? '1' : '0', LAN_HOST_MANAGER: agent.hostManager ? '1' : '0', LAN_ASSISTANT_SETTINGS: agent.primaryCoordinator ? '1' : '0', LAN_SESSION_KEY: agent.sessionKey ?? '' });
   const endpointFile = resolve(agent.configDirectory, 'network-endpoint.json');
   await writeJson(endpointFile, { ...endpoint, agentId: agent.id, sessionKey: agent.sessionKey });
   env.LAN_ENDPOINT_FILE = endpointFile;
@@ -44,7 +48,8 @@ export async function runtimeConfig(agent, endpoint, credentialsOverride) {
   if (agent.runtime === 'claude') {
     const configDir = resolve(agent.configDirectory, 'claude');
     await mkdir(configDir, { recursive: true, mode: 0o700 });
-    await writeJson(resolve(agent.workspace, '.claude', 'settings.json'), { hooks });
+    const settings = agent.projectWorkspace ? resolve(configDir, 'settings.json') : resolve(agent.workspace, '.claude/settings.json');
+    await writeJson(settings, { hooks });
     Object.assign(env, {
       CLAUDE_CONFIG_DIR: configDir,
       CLAUDE_CODE_EXECUTABLE: resolve(installation.directory, 'node_modules/.bin/claude'),
@@ -90,8 +95,17 @@ export async function runtimeConfig(agent, endpoint, credentialsOverride) {
     await writeFile(join(profile, 'cordis.patch.yml'), JSON.stringify(patch, null, 2));
     Object.assign(env, { DSH_HOME: home, LAN_MODEL_KEY: credentials.NEW_API_KEY, DSH_DISABLE_TELEMETRY: '1' });
     args = ['--profile', 'acp'];
+  } else if (agent.runtime === 'codex') {
+    // Session-scoped hooks keep this member's injection out of the user's own
+    // Codex client; the private home only supplies the model, login and trust.
+    Object.assign(env, {
+      CODEX_HOME: await codexHome(agent, model),
+      CODEX_CONFIG: JSON.stringify({ hooks }),
+      NO_BROWSER: '1',
+      INITIAL_AGENT_MODE: 'agent',
+    });
   } else throw new Error(`Unsupported runtime: ${agent.runtime}`);
   const mcpServers = [{ name: 'local-network', command: process.execPath,
-    args: [resolve(ROOT, 'src/mcp.mjs')], env: ['LAN_URL', 'LAN_TOKEN', 'LAN_AGENT_ID', 'LAN_CAN_REPLY', 'LAN_HOST_MANAGER', 'LAN_SESSION_KEY'].map(name => ({ name, value: env[name] })) }];
+    args: [resolve(ROOT, 'src/mcp.mjs')], env: ['LAN_URL', 'LAN_TOKEN', 'LAN_AGENT_ID', 'LAN_CAN_REPLY', 'LAN_HOST_MANAGER', 'LAN_ASSISTANT_SETTINGS', 'LAN_SESSION_KEY'].map(name => ({ name, value: env[name] })) }];
   return { bin, args, env, model, mcpServers, installation, secrets: [credentials.NEW_API_KEY, endpoint.token] };
 }

@@ -47,15 +47,19 @@ if (action === 'status' || action === 'check') {
     await writeJson(resolve(directory, 'package.json'), { private: true, dependencies: spec.packages });
     await command('npm', ['install', '--no-audit', '--no-fund'], directory);
     await access(resolve(directory, 'node_modules', '.bin', spec.bin));
-    const executable = resolve(directory, 'node_modules', '.bin', id === 'claude' ? 'claude' : 'dsh');
+    // Each runtime reports its own version; DSH's bin doubles as its ACP entry.
+    const executable = resolve(directory, 'node_modules', '.bin', id === 'codex' ? 'codex' : id === 'claude' ? 'claude' : 'dsh');
     const version = await command(executable, ['--version'], directory, true);
     const previous = state[id] ?? { active: 'initial', spec: specs[id] };
     const candidate = { active: slot, spec, previous, installedAt: new Date().toISOString(), binaryVersion: version };
     const candidateFile = resolve(LOCAL, `runtime-state.candidate-${slot}.json`);
     await writeJson(candidateFile, { ...state, [id]: candidate });
     try {
-      await command(process.execPath, [resolve(ROOT, 'scripts/verify-native.mjs'), '--runtime', id], ROOT, false,
-        { ...process.env, LAN_RUNTIME_STATE_FILE: candidateFile });
+      // Codex authenticates through the local ChatGPT login, not the shared
+      // mock gateway, so its native probe checks adapter/hook wiring only.
+      const probe = id === 'codex' ? 'verify-codex.mjs' : 'verify-native.mjs';
+      const probeArgs = [resolve(ROOT, 'scripts', probe), ...(id === 'codex' ? [] : ['--runtime', id])];
+      await command(process.execPath, probeArgs, ROOT, false, { ...process.env, LAN_RUNTIME_STATE_FILE: candidateFile });
     } finally { await rm(candidateFile, { force: true }); }
     // Failures leave the active installation untouched; the failed slot/report remains inspectable.
     state[id] = { ...candidate, nativeVerifiedAt: new Date().toISOString() };
@@ -68,4 +72,4 @@ if (action === 'status' || action === 'check') {
   state[name] = { ...old.previous, previous: { active: old.active, spec: old.spec } };
   await writeJson(stateFile, state);
   console.log(`${name}: restored ${state[name].active}; restart the network.`);
-} else throw new Error('Commands: status | check | install | update [claude|dsh] | rollback claude|dsh');
+} else throw new Error(`Commands: status | check | install | update [${Object.keys(specs).join('|')}] | rollback <runtime>`);
