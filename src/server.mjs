@@ -63,7 +63,7 @@ export async function startServer({ network, port = 0, saveEndpoint = true, hold
         client: resolve(existsSync(resolve(root,'current/scripts/member.mjs')) ? resolve(root,'current') : ROOT, 'scripts/member.mjs'), guide: joinGuide });
     }
     const self = req.url === '/members/self';
-    const owner = ['/maintenance','/members/owner','/nodes/owner','/channel/owner','/hosts/owner'].includes(req.url);
+    const owner = ['/maintenance','/members/owner','/nodes/owner','/channel/owner','/hosts/owner','/persona/owner'].includes(req.url);
     const auth = Buffer.from(req.headers.authorization ?? '');
     const actor=network.runCredentials?.get(auth.toString().slice(7));
     const scoped=actor && auth.toString().startsWith('Bearer ') && network.activeRun(actor.agentId,actor.sessionKey)?.runId===actor.runId;
@@ -139,6 +139,14 @@ export async function startServer({ network, port = 0, saveEndpoint = true, hold
               }
             }
           }break;
+        }
+        case '/persona/owner': {
+          const id = network.members.coordinator();
+          if (!id) throw new Error('No primary coordinator configured');
+          await network.catalog.reloadPersona();
+          value = { employee: id, profile: params.fields === undefined ? network.catalog.primaryPersona?.profile ?? null :
+            await network.catalog.updateCoordinatorPersona(id, params.fields) };
+          break;
         }
         case '/channel/owner':
           if(!network.gate.channel?.ownerRequest || params.action!=='request')throw new Error('Channel does not support owner requests');

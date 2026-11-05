@@ -7,7 +7,10 @@ import { ROOT } from './paths.mjs';
 // Other files in the application or another employee's workspace are not granted.
 const names = ['skills/agent-network/SKILL.md', 'skills/agent-network/references/coordinator.md',
   'docs/ARCHITECTURE.md', 'docs/RELEASING.md'];
-export const guideFiles = names.map(name => resolve(ROOT, name));
+// The guide revision uses the original manifest entries; their references are separately covered by the archive hash.
+const references = ['coordinator-persona.md', 'personal-assistant.md', 'managed-hosts.md'];
+export const guideFiles = [...names, ...references.map(name => 'skills/agent-network/references/' + name)]
+  .map(name => resolve(ROOT, name));
 export async function networkGuide() {
   const hash = createHash('sha256');
   for (let i = 0; i < names.length; i++) hash.update(names[i] + '\0').update(await readFile(guideFiles[i])).update('\0');

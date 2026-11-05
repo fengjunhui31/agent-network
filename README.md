@@ -6,6 +6,8 @@ Agent Network 连接独立运行的 AI 团队。每个实例有自己的协调�
 
 主要协调者可以使用[个人助手工作模板](skills/agent-network/references/personal-assistant.md)。同一个员工可以换运行时与模型，继续使用自己的工作区、人设和共享记忆。
 
+每个网络的主要协调者可以拥有独立的[总控人设](skills/agent-network/references/coordinator-persona.md)，由机主确定称呼、角色和协作分工。
+
 ## 从源码开始
 
 需要 Node.js 22.13+、npm 和 POSIX 系统。macOS 使用系统 `lockf`，Linux 使用 util-linux 的 `flock`。在新目录运行以下命令。
@@ -15,7 +17,7 @@ git clone https://github.com/fengjunhui31/agent-network.git
 cd agent-network
 npm ci
 npm run ci
-npm install -g "$PWD/dist/shiyanjia-agent-network-0.9.5.tgz"
+npm install -g "$PWD/dist/shiyanjia-agent-network-0.9.7.tgz"
 instance="$HOME/agent-network-instance"
 agent-network init "$instance"
 agent-network-release activate "$instance"

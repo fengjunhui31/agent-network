@@ -36,6 +36,22 @@ try {
     process.once('SIGINT', shutdown); process.once('SIGTERM', shutdown);
   } else if (command === 'list') {
     console.log(JSON.stringify(await rpc('catalog', {}), null, 2));
+  } else if (command === 'persona') {
+    const file = value('file');
+    const fields = file ? JSON.parse(await readFile(resolve(file), 'utf8')) : undefined;
+    if (process.env.LAN_AGENT_ID) {
+      console.log(JSON.stringify(await rpc('team', { action:'self', operation:'persona', fields,
+        from:process.env.LAN_AGENT_ID, fromSessionKey:process.env.LAN_SESSION_KEY || undefined }), null, 2));
+    } else {
+      const { url } = await readJson(resolve(LOCAL, 'server.json'));
+      const { token } = await readJson(resolve(LOCAL, 'release-control.json'));
+      const response = await fetch(url + '/persona/owner', { method:'POST', headers:{
+        'content-type':'application/json', authorization:'Bearer ' + token }, body:JSON.stringify({ fields }),
+        signal:AbortSignal.timeout(15000) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      console.log(JSON.stringify(result,null,2));
+    }
   } else if (command === 'team') {
     const patch = {};
     for (const key of ['name', 'runtime', 'model']) if (value(key)) patch[key] = value(key);
@@ -49,5 +65,5 @@ try {
     console.log(JSON.stringify(await rpc('message', { to: value('agent'), message: value('message'), from: 'user', files }), null, 2));
   } else if (command === 'result') {
     console.log(JSON.stringify(await rpc('result', { runId: args[0], waitMs: Number(value('wait') ?? 0) }), null, 2));
-  } else console.log('Commands: serve | list | team status/create/update | run --agent ID --message TEXT [--file ABS_PATH] | send --agent ID --message TEXT [--file ABS_PATH] | result RUN_ID [--wait 30000]');
+  } else console.log('Commands: serve | list | persona [--file PRIVATE_JSON] | team status/create/update | run --agent ID --message TEXT [--file ABS_PATH] | send --agent ID --message TEXT [--file ABS_PATH] | result RUN_ID [--wait 30000]');
 } catch (error) { console.error(error.message); process.exitCode = 1; }

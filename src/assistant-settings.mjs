@@ -10,7 +10,7 @@ function declaredModels(catalog, runtime) {
     .map(([name]) => name);
 }
 
-export async function assistantSettings(network, { from, fromSessionKey, operation, runtime, model }) {
+export async function assistantSettings(network, { from, fromSessionKey, operation, runtime, model, fields }) {
   const run = network.activeRun(from, fromSessionKey);
   if (!run || from !== network.members.coordinator() || network.peerSession(run))
     throw new Error('Assistant settings require an active local coordinator');
@@ -20,6 +20,12 @@ export async function assistantSettings(network, { from, fromSessionKey, operati
     const a = network.catalog.get(from);
     return { runtime: a.runtime, model: a.model, employee: a.id, workspace: a.workspace };
   };
+  const owner = network.gate.channel?.ownsRun(run) || (!run.parentRunId && run.from === 'user');
+  if (operation === 'persona') {
+    if (!owner) throw new Error('Coordinator persona settings require the bound owner');
+    if (fields === undefined) return { employee: from, profile: network.catalog.primaryPersona?.profile ?? null };
+    return { employee: from, profile: await network.catalog.updateCoordinatorPersona(from, fields), appliesTo: 'next-run' };
+  }
   if (operation === 'status') return { running, configured: configured(), runtimes: SUPPORTED_RUNTIMES };
 
   const target = runtime ?? agent.runtime;
@@ -29,7 +35,7 @@ export async function assistantSettings(network, { from, fromSessionKey, operati
     return { runtime: target, models };
   }
   if (operation !== 'set') throw new Error('Select status, models or set');
-  if (!(network.gate.channel?.ownsRun(run) || (!run.parentRunId && run.from === 'user')))
+  if (!owner)
     throw new Error('A settings change requires a request from the bound owner');
   if (!model) throw new Error('Specify the model for the next run');
   if (target === agent.runtime && model === agent.model) return { running, configured: configured(), changed: false };
