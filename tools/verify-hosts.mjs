@@ -79,7 +79,7 @@ try {
   await assert.rejects(A.hosts.callHost('lab', 'lark.message.send', 'any'), /not authorized/);
   const version = await A.hosts.callHost('lab', 'cli.version', 'node');
   assert.equal(version.resource, 'node');
-  assert.ok(version.version);
+  assert.equal(version.version, (await exec('node', ['-p', 'process.versions.node'])).stdout.trim());
   assert.ok((await A.hosts.callHost('lab', 'inventory.refresh')).scheduled);
   await until(async () => (await A.hosts.detail('lab')).revision > row.revision, 'new revision');
   const state = await B.hosts.store.read();

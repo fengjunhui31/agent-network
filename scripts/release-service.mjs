@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { readFileSync, readdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { access, mkdir, open, readFile, readdir, rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -65,6 +66,17 @@ export async function control(instance, ep, action) {
     throw new Error('Control credential does not belong to the running process');
   return rpc(key, '/maintenance', { action });
 }
+function linuxProcess(pid) {
+  try {
+    const raw = readFileSync('/proc/' + pid + '/stat', 'utf8');
+    // Parenthesized process names can contain spaces or closing parentheses.
+    const [state, parent] = raw.slice(raw.lastIndexOf(')') + 2).split(' ');
+    return { state, parent: Number(parent) };
+  } catch (error) {
+    if (error.code === 'ENOENT' || error.code === 'ESRCH') return null;
+    throw error;
+  }
+}
 export function alive(pid) {
   if (!Number.isSafeInteger(pid) || pid <= 0) throw new Error('Invalid service PID');
   try {
@@ -72,6 +84,10 @@ export function alive(pid) {
   } catch (error) {
     if (error.code === 'ESRCH') return false;
     throw error;
+  }
+  if (process.platform === 'linux') {
+    const info = linuxProcess(pid);
+    return Boolean(info && info.state !== 'Z' && info.state !== 'X');
   }
   const state = spawnSync('ps', ['-p', String(pid), '-o', 'stat='], { encoding: 'utf8' }).stdout?.trim();
   return Boolean(state && !state.startsWith('Z'));
@@ -107,10 +123,16 @@ export async function stopUnready(instance, application, eventStart) {
     return;
   if ((await read(join(instance, '.local/server.lock'), null))?.pid === child.pid)
     return stop(instance, child.pid);
-  const command =
-    spawnSync('ps', ['-p', String(child.pid), '-o', 'command='], { encoding: 'utf8' }).stdout ?? '';
-  if (!command.includes(join(application, 'src/cli.mjs') + ' serve'))
-    throw new Error('Unready process identity changed');
+  const script = join(application, 'src/cli.mjs');
+  const matches =
+    process.platform === 'linux'
+      ? readFileSync('/proc/' + child.pid + '/cmdline', 'utf8')
+          .split('\0')
+          .some((arg, i, args) => arg === script && args[i + 1] === 'serve')
+      : (
+          spawnSync('ps', ['-p', String(child.pid), '-o', 'command='], { encoding: 'utf8' }).stdout ?? ''
+        ).includes(script + ' serve');
+  if (!matches) throw new Error('Unready process identity changed');
   await terminate(child.pid, 15000);
 }
 export async function exists(file) {
@@ -227,13 +249,14 @@ export async function waitReady(instance, release, processInfo, channel, timeout
 async function legacyIdle(instance, ep) {
   if ((await rpc(ep, '/health')).version !== '0.2.0')
     throw new Error('Only the verified 0.2.0 baseline supports a legacy handoff');
-  if (
-    spawnSync('ps', ['-axo', 'ppid='], { encoding: 'utf8' })
-      .stdout.trim()
-      .split(/\s+/)
-      .includes(String(ep.pid))
-  )
-    return false;
+  const hasChildren =
+    process.platform === 'linux'
+      ? readdirSync('/proc').some((n) => /^\d+$/.test(n) && linuxProcess(Number(n))?.parent === ep.pid)
+      : spawnSync('ps', ['-axo', 'ppid='], { encoding: 'utf8' })
+          .stdout.trim()
+          .split(/\s+/)
+          .includes(String(ep.pid));
+  if (hasChildren) return false;
   for (const [name, finished] of [
     ['wecom-inbox', ['completed', 'failed', 'cancelled', 'canceled']],
     ['wecom-outbox', ['sent']]

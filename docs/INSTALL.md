@@ -9,14 +9,14 @@ git clone https://github.com/fengjunhui31/agent-network.git
 cd agent-network
 npm ci
 npm run ci
-npm install -g "$PWD/dist/shiyanjia-agent-network-0.9.1.tgz"
+npm install -g "$PWD/dist/shiyanjia-agent-network-0.9.3.tgz"
 instance="$HOME/agent-network-instance"
 agent-network init "$instance"
 agent-network-release activate "$instance"
 agent-network-release status "$instance"
 ```
 
-`npm run ci` 会构建核心安装器、中转和企微三个本地 npm 包，并用一个临时实例验证安装。`init` 生成示例配置，已有实例沿用其配置。`activate` 从安装器中提取并核对应用，对指定实例进行切换。也可用 `node scripts/release.mjs activate "$instance" --archive dist/agent-network-0.9.1.tar.gz` 从源码检出激活应用。
+`npm run ci` 会构建核心安装器、中转和企微三个本地 npm 包，并用一个临时实例验证安装。`init` 生成示例配置，已有实例沿用其配置。`activate` 从安装器中提取并核对应用，对指定实例进行切换。也可用 `node scripts/release.mjs activate "$instance" --archive dist/agent-network-0.9.3.tar.gz` 从源码检出激活应用。
 
 开发调试时，可设置 `LAN_INSTANCE_ROOT` 为独立实例目录后运行 `npm start`。
 
