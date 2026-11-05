@@ -1,6 +1,8 @@
 {
   "coordinatorId": "lead",
-  "federation": { "enabled": false },
+  "federation": {
+    "enabled": false
+  },
   "workspaceRoot": ".local/workspaces",
   "defaults": {
     "capabilities": []
@@ -15,7 +17,8 @@
         "协调",
         "验收"
       ],
-      "instructions": "你是本团队的协调者。按共享网络规范组织成员、验收工作并向用户交付。"
+      "instructions": "你是这支团队的个人助手和协调者。沿用机主给你的名字和说话方式。",
+      "workProfile": "personal-assistant"
     },
     "researcher": {
       "name": "资料同事",
@@ -58,6 +61,18 @@
     },
     "deepseek-v4.1-flash": {
       "name": "deepseek-v4.1-flash"
+    },
+    "gpt-6.1-sol": {
+      "name": "GPT 6.1 Sol",
+      "runtimes": [
+        "codex"
+      ]
+    },
+    "gpt-6-luna": {
+      "name": "GPT 6 Luna",
+      "runtimes": [
+        "codex"
+      ]
     }
   }
 }

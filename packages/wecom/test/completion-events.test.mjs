@@ -77,7 +77,7 @@ test('late completion resumes ExampleBot in the original chat and can deliver th
   const file=resolve(child.workspace,'result.txt');await writeFile(file,'verified employee artifact');
   await f.reply(parent,'I will return with the result');await f.finish(parent);await f.bridge.worker.running;
   const other=await f.input('group-b','unrelated task');
-  await f.finish(child,'result ready');const review=await f.review(parent);
+  await f.finish(child,'result ready '+file);const review=await f.review(parent);
   assert.equal(review.originMessageId,parent.originMessageId);assert.equal(review.parentRunId,undefined);
   assert.equal(review.originRunId,parent.originRunId);assert.equal(review.sessionKey,parent.sessionKey);
   assert.match(review.input,/original user task/);assert.match(review.input,/不是用户的新请求/);
@@ -141,10 +141,10 @@ test('a queued completion survives reopening and reads saved employee results wi
   const f=await fixture(t);const parent=await f.input();const child=await f.child(parent);
   const file=resolve(child.workspace,'persisted.txt');await writeFile(file,'saved artifact');
   await f.reply(parent,'working');await f.finish(parent);await f.bridge.worker.running;
-  await f.bridge.worker.close();await f.finish(child,'saved result');assert.equal(f.events()[0].status,'pending');
+  await f.bridge.worker.close();await f.finish(child,'saved result '+file);assert.equal(f.events()[0].status,'pending');
   const employeeCalls=f.calls.filter(x=>x.agent.id==='a').length;
   await f.close();await f.open();const review=await f.review(parent);
-  assert.equal((await f.network.getResult(child.runId)).answer,'saved result');
+  assert.equal((await f.network.getResult(child.runId)).answer,'saved result '+file);
   await f.reply(review,'resumed review');await f.finish(review,`INTERNAL\n${file}`);await f.bridge.worker.running;
   assert.equal(f.calls.filter(x=>x.agent.id==='a').length,employeeCalls);
   assert.equal(f.events()[0].status,'completed');assert.equal(f.uploads[0].text,'saved artifact');

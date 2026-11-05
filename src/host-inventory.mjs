@@ -89,6 +89,8 @@ const installationId = (context, file) =>
     .digest('hex')
     .slice(0, 24);
 const runtimeTypes = ['claude', 'codex', 'dsh', 'kimi', 'zcode', 'mimo'];
+// Managed slots install one ACP adapter per runtime; the vendor CLI ships as its dependency.
+const managedAdapters = { claude: 'claude-agent-acp', dsh: 'dsh', codex: 'codex-acp' };
 const familiar = ['lark-cli', 'git', 'gh', 'node', 'npm', 'python3', 'ssh', 'docker', 'rg'];
 const paths = () => [...new Set((process.env.PATH ?? '').split(delimiter).filter(isAbsolute))];
 const publicName = (s) => label.safeParse(s).success;
@@ -181,25 +183,14 @@ export async function inspectHost(root, contextId, options = {}, probe = {}) {
         version: await versionOf(type, file),
         adapter: type === 'codex' ? 'index-only' : 'unverified'
       });
-    if (managed[type]?.active && ['claude', 'dsh'].includes(type)) {
+    if (managed[type]?.active && managedAdapters[type]) {
       const slot = String(managed[type].active);
       if (!/^[\w.-]+$/.test(slot) || slot === '.' || slot === '..') {
         partial.add('invalid-managed-slot');
         continue;
       }
       const bin = await executable(join(root, '.local/runtimes', type, slot, 'node_modules/.bin', type));
-      const adapter =
-        bin &&
-        (await executable(
-          join(
-            root,
-            '.local/runtimes',
-            type,
-            slot,
-            'node_modules/.bin',
-            type === 'claude' ? 'claude-agent-acp' : 'dsh'
-          )
-        ));
+      const adapter = bin && (await executable(join(root, '.local/runtimes', type, slot, 'node_modules/.bin', managedAdapters[type])));
       if (bin && !adapter) partial.add('managed-adapter-unavailable');
       if (bin)
         runtimes.push({

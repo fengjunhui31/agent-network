@@ -55,11 +55,11 @@ test('unknown recipients fail immediately and results survive a new network inst
   await assert.rejects(network.send({ to: 'missing', message: 'hello' }), /Unknown agent/);
   const ready = once(network, 'event'); const run = await network.delegate({ target: 'a', message: 'work' }); await ready;
   await writeFile(resolve(run.workspace, 'report.txt'), 'evidence');
-  controls.get('a').finish({ answer: 'report written', stopReason: 'end_turn' });
+  controls.get('a').finish({ answer: 'report written ' + resolve(run.workspace, 'report.txt'), stopReason: 'end_turn' });
   const result = await network.getResult(run.runId, 1000);
   assert.equal(result.outputFiles.length, 1);
   const fresh = new AgentNetwork(await Catalog.load(root), { root });
-  assert.equal((await fresh.getResult(run.runId)).answer, 'report written');
+  assert.equal((await fresh.getResult(run.runId)).answer, 'report written ' + resolve(run.workspace, 'report.txt'));
 });
 
 test('template instances have independent directories and retained role capabilities', async t => {

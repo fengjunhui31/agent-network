@@ -2,6 +2,8 @@
 
 需要 POSIX 系统、Node.js 22.13+、npm，以及 macOS 的 `lockf` 或 Linux 的 `flock`。将实例放在源码目录之外。`current` 指向已启用版本，员工工作区、凭据、队列和记忆放在实例的 `.local/`。
 
+主要协调者共用[个人助手工作模板](../skills/agent-network/references/personal-assistant.md)，人设、工作区、运行时和模型单独配置。用户可以在与负责人的对话中直接请求切运行时或模型，[设置和重启方法](../skills/agent-network/references/coordinator.md#个人助手与自己的运行时)。
+
 ## 安装
 
 ```sh
@@ -9,7 +11,7 @@ git clone https://github.com/fengjunhui31/agent-network.git
 cd agent-network
 npm ci
 npm run ci
-npm install -g "$PWD/dist/shiyanjia-agent-network-0.9.3.tgz"
+npm install -g "$PWD/dist/shiyanjia-agent-network-0.9.5.tgz"
 instance="$HOME/agent-network-instance"
 agent-network init "$instance"
 agent-network-release activate "$instance"
@@ -55,7 +57,7 @@ agent-network-release status "$instance"
 | --- | --- | --- |
 | Claude Code | 在实例安装 `claude` 执行适配器，员工选 `runtime: "claude"`。模型网关支持 Anthropic Messages。 | `agent-network runtimes "$HOME/agent-network-instance" install claude` |
 | DSH | 在实例安装 `dsh`，员工选 `runtime: "dsh"`。网关提供 Chat Completions，与 DSH 同版本的 hook 插件随 slot 安装。 | `agent-network runtimes "$HOME/agent-network-instance" install dsh` |
-| Codex | 安装带 app-server 的本机 Codex CLI，选目录预览后以成员身份申请。当前提供会话、Skill、MCP 和项目脚本的只读目录。 | `agent-network member "$HOME/agent-network-instance" discover --runtime codex --project "$PWD"` |
+| Codex | 安装带 app-server 的本机 Codex CLI，选目录预览后以成员身份申请。可通过 ACP 执行 Codex 员工，也能只读上报会话、Skill、MCP 和项目脚本。 | `agent-network member "$HOME/agent-network-instance" discover --runtime codex --project "$PWD"` |
 
 逐项配置、验证和入网命令见[运行时接入手册](../skills/agent-network/references/coordinator.md#按运行时接入)。npm 安装的实例可在 `current/skills/agent-network/references/coordinator.md` 阅读同一份手册。
 

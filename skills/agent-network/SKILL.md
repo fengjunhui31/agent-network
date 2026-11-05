@@ -49,9 +49,15 @@ description: 本机 Agent 网络的协作说明。协调者和专业员工在申
 要理解当前实现，读[架构说明](../../docs/ARCHITECTURE.md)。绑定用户要求升级网络时，读[版本、构建和升级规范](../../docs/RELEASING.md)；一般业务任务无须加载维护流程。当前启用的版本、工具和能力以运行时快照为准，设计中的功能以发布记录确认是否已启用。
 
 
+## 个人助手
+
+主要协调者在工作区和每轮输入中获得[个人助手工作模板](references/personal-assistant.md)。用户明确要求换运行时或模型时使用 `assistant_settings`，从下一轮生效。操作示例与重启方法见[协调者手册](references/coordinator.md#个人助手与自己的运行时)。
+
+回答本身就是交付。只有确实要给对方某个文件时，才在最终回答中点名工作区内该文件的完整路径。普通对话直接回复文字。
+
 ## 接入运行时
 
-Claude Code 和 DSH 使用 ACP 执行员工任务，Codex 通过本机 App Server 上报所选项目的会话与工具目录。安装、配置、验收命令和各自边界见[三种运行时接入说明](references/coordinator.md#按运行时接入)。任选自己的负责人 ID 和人设。
+Claude Code、DSH 和 Codex 都可以执行员工任务。Codex 也能通过本机 App Server 上报所选项目的会话与工具目录。安装、配置、验收命令和各自边界见[三种运行时接入说明](references/coordinator.md#按运行时接入)。任选自己的负责人 ID 和人设。
 
 ## 向项目贡献
 

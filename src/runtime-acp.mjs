@@ -5,6 +5,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { client, ndJsonStream } from '@agentclientprotocol/sdk';
 import { runtimeConfig } from './runtime-config.mjs';
+import { trustCodexHooks } from './runtime-codex.mjs';
 import { readJson, writeJson, within, redact } from './paths.mjs';
 import { guideFiles } from './network-guide.mjs';
 import { networkVersion } from './version.mjs';
@@ -95,6 +96,9 @@ export class AcpRuntime {
       }, { signal: AbortSignal.timeout(60000) });
       this.sessionId = response.sessionId;
     }
+    // Codex runs no hook until the exact command hash is trusted; do it on every
+    // start so an edited hook never degrades into silent non-injection.
+    if (this.agent.runtime === 'codex') await trustCodexHooks(rpc, this.agent.workspace);
     if (saved?.sessionId && saved.sessionId !== this.sessionId) {
       const historyFile = resolve(this.agent.configDirectory, 'session-history.json');
       const history = await readJson(historyFile, []); history.push(saved); await writeJson(historyFile, history);

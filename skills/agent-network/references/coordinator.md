@@ -1,5 +1,15 @@
 # 负责人的操作说明
 
+## 个人助手与自己的运行时
+
+主要协调者使用[个人助手工作模板](personal-assistant.md)。机主给出的名字、性格与职责继续来自员工配置。日常交谈直接回答；想确认运行状态或维护网络时才查操作手册。`workProfile` 可在模板或单个员工设置为 `personal-assistant`；设为 `null` 可以关闭这份工作模板。既有网络的主要协调者默认获得它。
+
+- 用户问你现在用什么，调用 `assistant_settings` 的 `status`。`running` 是当前这一轮，`configured` 是下次启动采用的设置。
+- 用 `models` 和运行时名称查可选项。Codex 查询本机 App Server 的模型目录；所选账号能否实际运行该模型，以成功完成一轮为准。网关运行时使用实例配置的模型，机主可以给模型声明 `runtimes` 范围。
+- 绑定用户明确要求时，用 `set` 给出目标 `runtime` 和 `model`。切模型时可省略运行时。当前轮告诉用户下一轮将采用什么，然后正常结束；不用改代码或重启网络。后续运行可用 `status` 核对。回到原设置也用一次 `set`。原生会话按运行时和模型分别处理，共用员工的工作区、人设、聊天记忆和稳定 ID。
+- 从实例外重启已安装的网络，执行 `agent-network-release restart "$INSTANCE"`，随后用 `agent-network-release status "$INSTANCE"` 核对服务版本与运行状态。协调者正在本轮服役时，用下文的 `schedule` 与当前已验证的应用包安排切换，并结束这一轮让服务排空。若只重启同一版本，可由实例外使用上述 `restart`，也可把同一已验证版本的延迟重启交给实例外的进程；不要在自己的执行中前台等待自己排空。
+- 用户要求修改网络代码时，在独立分支改动、测试、提交 MR，合并后构建并发布，最后给指定实例启用。分别说清源码、包和现场版本。只想换自己的模型直接用 `set`。
+
 ## 管理员工
 
 先看工作区 `TEAM-CURRENT.json` 的员工、模板和能力。优先复用合适的人；一次性专业任务可 `delegate(target="template:engineer", ...)` 招募，长期角色可由负责人创建或更新。也可查协调者工作区已有的 `工具能力清单.md` 和 `能力说明库/`，以实际安装、授权和验证结果判断工具是否可用。写说明不会给员工安装工具或授予外部账号权限。
@@ -93,7 +103,7 @@ export LAN_INSTANCE_ROOT="$HOME/agent-network-instance"
 
 ### Codex
 
-本版本提供 **Codex 目录接入**。本机 `codex` 需在 PATH 中，支持 App Server 的 `thread/list`、`skills/list` 和 `mcpServerStatus/list`。先用 `codex --version`、`codex app-server --help` 确认 CLI 可用。然后选择希望公开的精确工作目录：
+本版本支持 **Codex 执行员工**和 **Codex 项目目录接入**。要执行员工，在实例中安装 Codex CLI 并使用本机登录，运行 `agent-network runtimes "$INSTANCE" install codex` 安装备好的适配器，选择运行时 `codex` 及可用模型即可。运行时采用员工私有配置与工作区，支持 ACP 执行、MCP 和原生 hook。目录接入单独选择项目。本机 `codex` 需在 PATH 中，支持 App Server 的 `thread/list`、`skills/list` 和 `mcpServerStatus/list`。先用 `codex --version`、`codex app-server --help` 确认 CLI 可用。然后选择希望公开的精确工作目录：
 
 ```sh
 npm run member -- discover --runtime codex --project "$PWD"
@@ -104,7 +114,7 @@ npm run member -- query --id research-codex
 npm run member -- sync --id research-codex
 ```
 
-可重复传 `--project`。发现器只取选中目录的会话标题、更新时间及可见工具名称，缺少标题或部分工具不可用时在报告中标注。自动索引不会恢复历史会话或调用其中的工具。Codex 席位在通讯录里用于查项目和能力；本版可直接派工的执行适配器是 Claude Code 和 DSH。其他运行时也可提交选定项目的自述报告。独立主网络之间通过 `--mode network` 联系是另一项选择。[OpenAI 的 Codex App Server 文档](https://learn.chatgpt.com/docs/app-server)
+可重复传 `--project`。发现器只取选中目录的会话标题、更新时间及可见工具名称，缺少标题或部分工具不可用时在报告中标注。自动索引不会恢复历史会话或调用其中的工具。Codex 席位在通讯录里用于查项目和能力；可将目录成员绑定到已配置的 Codex 执行员工。读取旧会话文件和恢复指定原生会话是两种不同操作，自动索引只读目录。其他运行时也可提交选定项目的自述报告。独立主网络之间通过 `--mode network` 联系是另一项选择。[OpenAI 的 Codex App Server 文档](https://learn.chatgpt.com/docs/app-server)
 
 ## 加密联系人与任务返回
 
