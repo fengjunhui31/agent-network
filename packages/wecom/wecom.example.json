@@ -3,5 +3,6 @@
   "secret": "YOUR-WECOM-BOT-SECRET",
   "allowedUserIds": [],
   "enabledGroupIds": [],
-  "maxConcurrentConversations": 4
+  "maxConcurrentConversations": 4,
+  "idleTimeoutMs": 900000
 }

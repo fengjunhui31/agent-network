@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { Readable, Writable } from 'node:stream';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -7,6 +8,37 @@ import { runtimeConfig } from './runtime-config.mjs';
 import { readJson, writeJson, within, redact } from './paths.mjs';
 import { guideFiles } from './network-guide.mjs';
 import { networkVersion } from './version.mjs';
+
+function isProgress(update, seen) {
+  switch (update.sessionUpdate) {
+    case 'agent_message_chunk':
+    case 'agent_thought_chunk':
+      return update.content?.type === 'text' ? Boolean(update.content.text?.trim()) : Boolean(update.content);
+    case 'tool_call':
+    case 'tool_call_update': {
+      if (!update.toolCallId) return false;
+      const previous = seen.get(update.toolCallId);
+      const fields = previous ?? new Map();
+      seen.set(update.toolCallId, fields);
+      let changed = !previous && update.sessionUpdate === 'tool_call';
+      for (const key of ['status', 'title', 'content', 'rawInput', 'rawOutput', 'locations']) {
+        if (update[key] == null) continue;
+        const digest = createHash('sha256').update(JSON.stringify(update[key])).digest('hex');
+        if (fields.get(key) !== digest) { fields.set(key, digest); changed = true; }
+      }
+      return changed;
+    }
+    case 'plan': {
+      if (!update.entries?.length) return false;
+      const digest = createHash('sha256').update(JSON.stringify(update.entries)).digest('hex');
+      const changed = seen.get(null) !== digest;
+      seen.set(null, digest);
+      return changed;
+    }
+    default:
+      return false;
+  }
+}
 
 export class AcpRuntime {
   constructor(agent, endpoint, onEvent, { credentials } = {}) {
@@ -23,16 +55,7 @@ export class AcpRuntime {
       this.connection?.close(new Error(`Runtime exited: ${code ?? signal}; ${this.stderr.slice(-3000)}`));
     });
     const app = client()
-      .onNotification('session/update', ({ params }) => {
-        const update = params.update;
-        if (update.sessionUpdate === 'agent_thought_chunk') return;
-        // session/load can replay prior messages and tools. They are history, not current progress.
-        if (!this.current) return;
-        this.onEvent({ ...update, sessionId: params.sessionId });
-        if (this.current && update.sessionUpdate === 'agent_message_chunk' && update.content?.type === 'text') {
-          this.current.push(update.content.text);
-        }
-      })
+      .onNotification('session/update', ({ params }) => this.update(params))
       .onRequest('session/request_permission', ({ params }) => {
         const option = params.options.find(x => x.kind === 'allow_once');
         return { outcome: option ? { outcome: 'selected', optionId: option.optionId } : { outcome: 'cancelled' } };
@@ -85,21 +108,67 @@ export class AcpRuntime {
       throw new Error(`File outside this member's workspace/shared inputs: ${absolute}`);
     }
   }
-  async run(message, files = [], timeoutMs = 300000) {
+  update({ sessionId, update }) {
+    // Loading a saved session may replay old tools. Only the current prompt can renew its timer.
+    if (!this.current || sessionId !== this.sessionId) return;
+    if (this.progressSeen && isProgress(update, this.progressSeen)) this.onProgress();
+    if (update.sessionUpdate === 'agent_thought_chunk') return;
+    this.onEvent({ ...update, sessionId });
+    if (update.sessionUpdate === 'agent_message_chunk' && update.content?.type === 'text') {
+      this.current.push(update.content.text);
+    }
+  }
+  async run(message, files = [], timeoutMs, idleTimeoutMs) {
+    // Numeric timeoutMs keeps the existing absolute deadline for CLI and worker callers.
+    const absoluteMs = timeoutMs ?? (idleTimeoutMs == null ? 300000 : undefined);
+    for (const duration of [absoluteMs, idleTimeoutMs === 0 ? undefined : idleTimeoutMs]) {
+      if (duration != null && (!Number.isSafeInteger(duration) || duration < 1 || duration > 2147483647)) {
+        throw new Error('Execution timeout must be a positive timer duration in milliseconds');
+      }
+    }
     this.current = [];
     this.readableFiles = new Set(files.map(x => resolve(x)));
     const prompt = [{ type: 'text', text: message }];
     if (files.length) prompt.push({ type: 'text', text: `共享输入文件（本机绝对路径）：\n${files.join('\n')}` });
-    const timer = setTimeout(() => { void this.cancel(); }, timeoutMs);
-    const hardStop = setTimeout(() => this.stop(), timeoutMs + 10000);
+    let deadline, idle, grace, cancellation;
+    let lastProgressAt = new Date().toISOString();
+    this.cancelTurn = (source, limitMs) => {
+      if (cancellation) return Promise.resolve();
+      cancellation = { source, requestedAt: new Date().toISOString(), ...(limitMs != null ? { limitMs } : {}) };
+      if (source === 'idle_timeout') cancellation.lastProgressAt = lastProgressAt;
+      clearTimeout(deadline); clearTimeout(idle);
+      grace = setTimeout(() => this.stop(), 10000);
+      return this.connection.agent.notify('session/cancel', { sessionId: this.sessionId }).catch(() => {});
+    };
+    this.progressSeen = idleTimeoutMs > 0 ? new Map() : null;
+    this.onProgress = () => {
+      if (!idleTimeoutMs || cancellation) return;
+      lastProgressAt = new Date().toISOString();
+      clearTimeout(idle);
+      idle = setTimeout(() => { void this.cancelTurn('idle_timeout', idleTimeoutMs); }, idleTimeoutMs);
+    };
+    if (absoluteMs != null) deadline = setTimeout(() => { void this.cancelTurn('deadline', absoluteMs); }, absoluteMs);
+    this.onProgress();
     try {
-      const result = await this.connection.agent.request('session/prompt', { sessionId: this.sessionId, prompt });
-      return { answer: this.current.join(''), stopReason: result.stopReason, sessionId: this.sessionId, model: this.config.model,
-        versions: this.config.installation.packages };
-    } finally { clearTimeout(timer); clearTimeout(hardStop); this.current = null; }
+      let stopReason;
+      try {
+        ({ stopReason } = await this.connection.agent.request('session/prompt', { sessionId: this.sessionId, prompt }));
+      } catch (error) {
+        if (!cancellation) throw error;
+        stopReason = 'cancelled'; // The grace stop can close the stream before the adapter replies.
+      }
+      if (stopReason === 'cancelled' && !cancellation) {
+        cancellation = { source: 'runtime_unspecified', observedAt: new Date().toISOString() };
+      }
+      return { answer: this.current.join(''), stopReason, sessionId: this.sessionId, model: this.config.model,
+        versions: this.config.installation.packages, ...(cancellation ? { cancellation } : {}) };
+    } finally {
+      clearTimeout(deadline); clearTimeout(idle); clearTimeout(grace);
+      this.progressSeen = null; this.onProgress = null; this.cancelTurn = null; this.current = null;
+    }
   }
-  async cancel() {
-    if (this.connection && this.sessionId) await this.connection.agent.notify('session/cancel', { sessionId: this.sessionId }).catch(() => {});
+  async cancel(source = 'user_stop') {
+    await this.cancelTurn?.(source);
   }
   stop() {
     this.connection?.close();

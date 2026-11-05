@@ -11,6 +11,19 @@ import { SharedContext } from './shared-context.mjs';
 import { CompletionEvents, COMPLETION_EVENT } from './completion-events.mjs';
 import { conversationSession, sessionTag } from './sessions.mjs';
 
+function durationLabel(ms) {
+  return ms % 60000 === 0 ? (ms / 60000) + ' 分钟' : Math.ceil(ms / 1000) + ' 秒';
+}
+function incompleteMessage(run) {
+  switch (run.cancellation?.source) {
+    case 'idle_timeout': return `连续 ${durationLabel(run.cancellation.limitMs)}没有收到运行时进展，助手已结束本轮。可以发送「重试」重新处理。`;
+    case 'deadline': return `本轮达到 ${durationLabel(run.cancellation.limitMs)}的执行时限。可以发送「重试」重新处理。`;
+    case 'user_stop': return '已按停止指令结束本轮。';
+    case 'service_shutdown': return '本机服务关闭时结束了本轮。';
+    default: return run.stopReason === 'cancelled' ? '运行时返回了取消，未提供取消来源。' : null;
+  }
+}
+
 export class WecomBridge {
   constructor(network, client, config, options = {}) {
     const local = resolve(network.root ?? network.catalog.root, '.local');
@@ -52,6 +65,7 @@ export class WecomBridge {
       await this.update({ queue: inbox.counts(), outbox: this.outbox.counts(), sharedMemory: true, memoryRecords: this.context.memory.entries.size });
       this.worker = new QueuedCoordinator(network, inbox, {
         maxConcurrent: config.maxConcurrentConversations ?? 4,
+        idleTimeoutMs: config.idleTimeoutMs, maxTurnMs: config.maxTurnMs,
         prepare: async item => {
           if(item.kind==='peer_return')return;
           await this.completions?.prepare(item);
@@ -217,7 +231,7 @@ export class WecomBridge {
       const run = prior.runId ? await this.network.getResult(prior.runId).catch(() => null) : null;
       const replies = prior.runId ? this.outbox.forRun(prior.runId).filter(x => x.kind === 'text' && x.origin!=='peer-return').map(x => x.content) : [];
       entries.push({ messageId: prior.messageId, at: prior.receivedAt, user: prior.userid,
-        kind: prior.kind ?? 'user',
+        kind: prior.kind ?? 'user', stopReason: run?.stopReason, cancellation: run?.cancellation,
         message: textOf(prior.body ?? {}) || prior.message, status: prior.status,
         replies: prior.kind==='peer_return'?[]:replies.length ? replies : run?.answer ? [run.answer] : [], files: run?.outputFiles ?? [] });
     }
@@ -257,7 +271,7 @@ export class WecomBridge {
     try {
       if(['peer_return','owner_request'].includes(item.kind) && run.status!=='completed')return;
       const explicitReplies = this.outbox.forRun(run.runId).some(message => message.origin === 'tool');
-      const answer = run.status === 'completed' ? run.answer || '任务已结束。' : `这次执行未完成：${this.clean(run.error ?? run.stopReason ?? run.status)}`;
+      const answer = run.status === 'completed' ? run.answer || '任务已结束。' : incompleteMessage(run) ?? `这次执行未完成：${this.clean(run.error ?? run.stopReason ?? run.status)}`;
       if ((!explicitReplies && item.kind !== COMPLETION_EVENT) || run.status !== 'completed') await this.outbox.enqueue({ key: item.kind==='peer_return' ? 'peer-result:'+item.peerLinkId+':'+item.peerReturn : item.kind==='owner_request'?'owner-post:'+item.id:`final:${run.runId}`,
         chatid: item.chatid, runId: run.runId, originMessageId: item.id, kind: 'text', content: answer, origin: item.kind==='peer_return'?'peer-return':'final' });
       const files = !['peer_return','owner_request'].includes(item.kind) && run.status === 'completed' ? await outgoingFiles(this.network, run, answer) : [];

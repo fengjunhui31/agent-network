@@ -1,6 +1,6 @@
 {
   "name": "@shiyanjia/agent-network-wecom",
-  "version": "0.7.1",
+  "version": "0.7.3",
   "private": true,
   "type": "module",
   "description": "Agent Network 的可选企业微信渠道",

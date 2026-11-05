@@ -302,3 +302,19 @@ test('WeCom group controls and shared memory use the instance coordinator identi
   assert.match(f.bridge.context.prepare(run),/阿岚/);
   f.network.complete(run,{answer:'研究任务完成'}); await f.bridge.worker.running;
 });
+
+test('idle cancellation gives the actual cause to the original chat and retains the observed reason for its next turn', async t => {
+  const f = await fixture(t, ['owner']);
+  await f.bridge.receive(f.frame('Review this work'));
+  await until(() => f.network.delegated.length === 1);
+  const run = [...f.network.runs.values()][0];
+  const cancellation = { source: 'idle_timeout', limitMs: 900000, requestedAt: new Date().toISOString(), lastProgressAt: new Date(Date.now()-900000).toISOString() };
+  f.network.complete(run, { status: 'incomplete', stopReason: 'cancelled', cancellation });
+  await f.bridge.worker.running;
+  const delivered = f.bridge.outbox.forRun(run.runId);
+  assert.equal(delivered.length, 1); assert.equal(delivered[0].chatid, 'owner');
+  assert.equal(delivered[0].status, 'sent'); assert.match(delivered[0].content, /连续 15 分钟没有收到运行时进展/);
+  const next = { id: 'future', chatid: 'owner', agentId: 'assistant', body: { chattype: 'single' } };
+  const file = await f.bridge.writeConversationHistory(next);
+  assert.deepEqual((await readJson(file)).entries[0].cancellation, cancellation);
+});

@@ -50,8 +50,8 @@ agent-network/                     实例根目录；开发源码可暂时与它
 ```sh
 npm run build
 instance_dir="$HOME/agent-network-instance"
-agent-network-release stage "$instance_dir" --archive dist/agent-network-0.8.1.tar.gz
-agent-network-release activate "$instance_dir" --archive dist/agent-network-0.8.1.tar.gz
+agent-network-release stage "$instance_dir" --archive dist/agent-network-0.8.3.tar.gz
+agent-network-release activate "$instance_dir" --archive dist/agent-network-0.8.3.tar.gz
 agent-network-release status "$instance_dir"
 agent-network-release rollback "$instance_dir"
 ```

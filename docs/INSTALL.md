@@ -9,14 +9,14 @@ git clone https://github.com/fengjunhui31/agent-network.git
 cd agent-network
 npm ci
 npm run ci
-npm install -g "$PWD/dist/shiyanjia-agent-network-0.8.1.tgz"
+npm install -g "$PWD/dist/shiyanjia-agent-network-0.8.3.tgz"
 instance="$HOME/agent-network-instance"
 agent-network init "$instance"
 agent-network-release activate "$instance"
 agent-network-release status "$instance"
 ```
 
-`npm run ci` 会构建核心安装器、中转和企微三个本地 npm 包，并用一个临时实例验证安装。`init` 生成示例配置，已有实例沿用其配置。`activate` 从安装器中提取并核对应用，对指定实例进行切换。也可用 `node scripts/release.mjs activate "$instance" --archive dist/agent-network-0.8.1.tar.gz` 从源码检出激活应用。
+`npm run ci` 会构建核心安装器、中转和企微三个本地 npm 包，并用一个临时实例验证安装。`init` 生成示例配置，已有实例沿用其配置。`activate` 从安装器中提取并核对应用，对指定实例进行切换。也可用 `node scripts/release.mjs activate "$instance" --archive dist/agent-network-0.8.3.tar.gz` 从源码检出激活应用。
 
 开发调试时，可设置 `LAN_INSTANCE_ROOT` 为独立实例目录后运行 `npm start`。
 
@@ -44,8 +44,8 @@ agent-network-release status "$instance"
 1. 按需调整实例的 `network.json`，设置主协调者、员工模板、模型 ID 和能力说明。模型 ID 应与自己的网关实际路由一致。
 2. 在实例的 `.local/credentials.json` 填写模型网关配置，参照 `credentials.example.json`，将文件权限设为 `600`。Claude Code 使用 Anthropic Messages 接口，DSH 使用 Chat Completions 接口。
 3. 使用 `agent-network runtimes "$HOME/agent-network-instance" install` 安装并核验各运行时，然后用 `agent-network agent "$HOME/agent-network-instance" list` 查看员工。
-4. 需要企微入口时，执行 `agent-network channel "$HOME/agent-network-instance" install wecom "$PWD/dist/shiyanjia-agent-network-wecom-0.7.1.tgz"`。安装器在实例内放置独立渠道包和 `.local/wecom.example.json`，按示例填写权限为 `600` 的 `.local/wecom.json`；已有机器人继续使用原文件。安装后重启实例使配置生效。关闭时用 `agent-network channel INSTANCE disable` 后重启。没有配置渠道的核心实例直接运行。
-5. 由 0.5.x 升级一个已使用企微的实例时，先用新版 npm 安装器执行上面的 `channel install`，再执行 `agent-network activate INSTANCE`。本地源码也可先构建独立渠道 tgz，再用 `LAN_INSTANCE_ROOT=... node scripts/channel.mjs install wecom /绝对路径/shiyanjia-agent-network-wecom-0.7.1.tgz` 安装。启用渠道时，切换器会核对本次启动的渠道就绪时间。
+4. 需要企微入口时，执行 `agent-network channel "$HOME/agent-network-instance" install wecom "$PWD/dist/shiyanjia-agent-network-wecom-0.7.3.tgz"`。安装器在实例内放置独立渠道包和 `.local/wecom.example.json`，按示例填写权限为 `600` 的 `.local/wecom.json`；已有机器人继续使用原文件。安装后重启实例使配置生效。关闭时用 `agent-network channel INSTANCE disable` 后重启。没有配置渠道的核心实例直接运行。
+5. 由 0.5.x 升级一个已使用企微的实例时，先用新版 npm 安装器执行上面的 `channel install`，再执行 `agent-network activate INSTANCE`。本地源码也可先构建独立渠道 tgz，再用 `LAN_INSTANCE_ROOT=... node scripts/channel.mjs install wecom /绝对路径/shiyanjia-agent-network-wecom-0.7.3.tgz` 安装。启用渠道时，切换器会核对本次启动的渠道就绪时间。
 
 普通成员或其他独立主网络加入时，执行 `agent-network member "$HOME/agent-network-instance" guide`。成员由加入方选项目并取得批准，两个同机主网络可用 `--mode network` 仅开放一个文本通信节点。
 

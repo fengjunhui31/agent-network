@@ -24,10 +24,11 @@ class Network extends EventEmitter {
   async send(request) { return { accepted: true, messageId: request.messageId }; }
   complete(run) { run.status = 'completed'; run.answer = 'done'; this.busy.delete(executionKey(run.agentId, run.sessionKey)); run.done(); }
 }
-async function setup(t, options = {}) {
+async function setup(t, { supportsIdleTimeout = false, ...options } = {}) {
   const base = resolve(INSTANCE_ROOT, '.local/tests'); await mkdir(base, { recursive: true });
   const directory = await mkdtemp(resolve(base, 'queue-'));
   const inbox = await DurableInbox.open(directory); const network = new Network(); const delivered = [];
+  network.supportsIdleTimeout = supportsIdleTimeout;
   const worker = new QueuedCoordinator(network, inbox, { deliver: async item => { delivered.push(item.id); }, ...options });
   t.after(async () => { await worker.close(); for (const run of network.runs.values()) network.complete(run); await worker.running; await rm(directory, { recursive: true, force: true }); });
   const add = async (messageId, chatid = 'owner') => (await inbox.add({ messageId, agentId:'assistant', userid: 'owner', chatid, body:{chattype:'group'}, message: messageId, files: [] })).item;
@@ -130,4 +131,21 @@ test('restart resumes several interrupted conversations independently without di
   network.emit('injected',{runId:restoredSupplement.runId,messages:[{id:restoredSupplement.id}]});
   for(const run of network.calls)network.complete(run);await worker.running;await worker.close();
   assert.deepEqual(inbox.counts(),{completed:3});
+});
+
+test('WeCom passes separate idle and total budgets and keeps a wall deadline on older cores', async t => {
+  for (const [modern, configured, idle, absolute] of [
+    [true, {}, 900000, undefined],
+    [true, { idleTimeoutMs: 0 }, 0, undefined],
+    [false, { idleTimeoutMs: 0 }, undefined, 900000],
+    [true, { idleTimeoutMs: 2500, maxTurnMs: 9000 }, 2500, 9000],
+    [false, {}, undefined, 900000]
+  ]) {
+    const f = await setup(t, { supportsIdleTimeout: modern, ...configured });
+    const item = await f.add('timed'); void f.worker.enqueue(item);
+    await until(() => f.network.calls.length === 1);
+    const run = f.network.calls[0];
+    assert.equal(run.idleTimeoutMs, idle); assert.equal(run.timeoutMs, absolute);
+    f.network.complete(run); await f.worker.running;
+  }
 });

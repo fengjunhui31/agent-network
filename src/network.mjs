@@ -36,6 +36,7 @@ export class AgentNetwork extends EventEmitter {
     this.runtimeFactory = runtimeFactory ?? ((...args) => new AcpRuntime(...args));
     this.runtimes = new Map(); this.runs = new Map(); this.busy = new Map(); this.inboxes = new Map();
     this.runCredentials=new Map();
+    this.supportsIdleTimeout = true;
     this.stopping = false; this.gate = new ReleaseGate(hold); this.members = new MemberDirectory(catalog, () => this.gate.channel?.coordinatorId);
     this.peers = new NetworkPeers(this);
   }
@@ -51,7 +52,11 @@ export class AgentNetwork extends EventEmitter {
   }
   isBusy(agentId) { return [...this.runs.values()].some(run => run.agentId === agentId && run.status === 'running'); }
   async cancel(agentId, sessionKey) {
-    const run = this.activeRun(agentId, sessionKey); if (run) run.cancelRequested = true;
+    const run = this.activeRun(agentId, sessionKey);
+    if (run) {
+      run.cancelRequested = true;
+      run.cancellation ??= { source: 'user_stop', requestedAt: new Date().toISOString() };
+    }
     await this.runtimes.get(executionKey(agentId, sessionKey))?.cancel();
   }
   async delegate(request, { admittedConversation = false } = {}) {
@@ -63,7 +68,7 @@ export class AgentNetwork extends EventEmitter {
     finally { this.gate.admissions--; }
   }
   async startExecution({ target, message, files = [], from, fromSessionKey, sessionKey, parallel = false, originMessageId,
-    originRunId, continuationOfRunId, resultRunIds = [], peerReturn, timeoutMs }) {
+    originRunId, continuationOfRunId, resultRunIds = [], peerReturn, timeoutMs, idleTimeoutMs }) {
     if (this.stopping) throw new Error('Network is stopping');
     if (!message?.trim()) throw new Error('A non-empty message is required');
     await validateFiles(files);
@@ -93,10 +98,10 @@ export class AgentNetwork extends EventEmitter {
     // Reserve before any asynchronous operation so two callers cannot start the same session.
     this.busy.set(key, runId); this.runs.set(runId, run);
     this.gate.executions.add(runId);
-    run.settled = this.execute(agent, run, timeoutMs).finally(() => this.gate.executions.delete(runId));
+    run.settled = this.execute(agent, run, timeoutMs, idleTimeoutMs).finally(() => this.gate.executions.delete(runId));
     return { runId, agentId: agent.id, workspace: agent.workspace, status: 'running' };
   }
-  async execute(agent, run, timeoutMs) {
+  async execute(agent, run, timeoutMs, idleTimeoutMs) {
     const key = executionKey(agent.id, run.sessionKey);
     let credential;
     try {
@@ -134,7 +139,12 @@ export class AgentNetwork extends EventEmitter {
         : sender
         ? `本轮委派者 ID：${sender.id}。本轮执行 ID：${run.runId}。过程消息应发给该委派者，不要根据角色名称猜测收件人。`
         : `本轮执行 ID：${run.runId}。本轮来自外部请求，向当前会话交付结果。`;
-      const result = await runtime.run(`${instructions}\n\n${sharedContext}\n${context}\n\n当前请求：\n${run.input}`, run.files, timeoutMs);
+      if (run.cancelRequested || this.stopping) {
+        run.cancellation ??= { source: 'service_shutdown', requestedAt: new Date().toISOString() };
+        Object.assign(run, { status: 'incomplete', stopReason: 'cancelled', outputFiles: [] });
+        return;
+      }
+      const result = await runtime.run(`${instructions}\n\n${sharedContext}\n${context}\n\n当前请求：\n${run.input}`, run.files, timeoutMs, idleTimeoutMs);
       Object.assign(run, result, { status: result.stopReason === 'end_turn' ? 'completed' : 'incomplete', outputFiles: await outputFiles(agent.workspace) });
     } catch (error) {
       run.status = 'failed'; run.error = redact(error.message);
@@ -241,7 +251,7 @@ export class AgentNetwork extends EventEmitter {
   }
   async close() {
     this.stopping = true;
-    for (const runtime of this.runtimes.values()) { await runtime.cancel().catch(() => {}); runtime.stop(); }
+    for (const runtime of this.runtimes.values()) { await runtime.cancel('service_shutdown').catch(() => {}); runtime.stop(); }
     await Promise.allSettled([...this.runs.values()].map(x => x.settled));
     this.runtimes.clear(); this.inboxes.clear();
   }
